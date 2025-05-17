@@ -705,7 +705,8 @@ INSERT INTO Taxes (tax_id, order_id, product_id, tax_rate, tax_amount, tax_date,
 (16, 16, 16, 7.00, 5.46, '2024-04-25', 'Sales Tax', 'OR', 'Pending', 'Mouse pad tax'),
 (17, 17, 17, 8.00, 6.40, '2024-05-30', 'Sales Tax', 'GA', 'Applied', 'HDD tax'),
 (18, 18, 18, 7.50, 10.50, '2024-06-05', 'Sales Tax', 'NC', 'Applied', 'Webcam tax'),
-(19, 19, 19, 8.25, 10.32, '2024-07-10', 'Sales Tax', 'NV', 'Pending', 'Smart bulb24, 20, 20, 6.50, 4.55, '2024-08-15', 'Sales Tax', 'FL', 'Applied', 'Power bank tax');
+(19, 19, 19, 8.25, 10.32, '2024-07-10', 'Sales Tax', 'NV', 'Pending', 'Smart bulb'),
+(20, 20, 20, 6.50, 4.55, '2024-08-15', 'Sales Tax', 'FL', 'Applied', 'Power bank tax');
 
 -- Table 20: Addresses
 CREATE TABLE Addresses (
@@ -764,7 +765,7 @@ INSERT INTO Subscriptions (subscription_id, customer_id, plan_name, start_date, 
 (2, 2, 'Prime', '2023-02-01', '2024-02-01', 'Active', 'Annual', 139.00, TRUE, 'Prime membership'),
 (3, 3, 'Music', '2023-03-01', '2024-03-01', 'Active', 'Monthly', 9.99, TRUE, 'Music subscription'),
 (4, 4, 'Video', '2023-04-01', '2024-04-01', 'Active', 'Monthly', 8.99, TRUE, 'Video subscription'),
-(5, 5, 'Prime', '2023-05-01', '2024-05-01  'Prime', '2023-06-01', '2024-06-01', 'Active', 'Annual', 139.00, TRUE, 'Prime membership'),
+(5, 5, 'Prime', '2023-05-01', '2024-05-01', 'Active', 'Monthly', 9.99, TRUE, 'Prime membership'),
 (6, 6, 'Music', '2023-07-01', '2024-07-01', 'Active', 'Monthly', 9.99, TRUE, 'Music subscription'),
 (7, 7, 'Video', '2023-08-01', '2024-08-01', 'Active', 'Monthly', 8.99, TRUE, 'Video subscription'),
 (8, 8, 'Prime', '2023-09-01', '2024-09-01', 'Active', 'Annual', 139.00, TRUE, 'Prime membership'),

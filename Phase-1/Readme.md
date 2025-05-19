@@ -17,9 +17,6 @@ Designing tables for core entities like products, customers, orders, and more.
 Populating each table with sample data to mimic real-world scenarios.
 
 
-
-Note: Add a database schema diagram to the images/ folder as database-schema.png to visualize table relationships. Use tools like MySQL Workbench or Lucidchart to generate the diagram.
-
 🛠️ Database Schema
 The database comprises 25 tables, each tailored to a specific e-commerce function:
 
@@ -138,16 +135,7 @@ Database Creation: Initializes the Amazon database.
 Table Creation: Defines schemas for all 25 tables with primary keys and constraints.
 Data Insertion: Adds 20 sample records per table to simulate a working dataset.
 
-File Structure
-📂 amazon-database/
-├── 📜 Phase 1.sql
-├── 📂 images/
-│   ├── 🖼️ project-logo.png
-│   ├── 🖼️ database-schema.png
-└── 📜 README.md
 
-
-Tip: Add a project logo to images/project-logo.png to enhance branding. Create or source a logo using tools like Canva or Figma.
 
 ⚙️ Setup Instructions
 To set up the database locally:
@@ -170,11 +158,6 @@ Verify the Data:
 Run queries like SELECT * FROM Products; to check records.
 Inspect the schema to confirm table structures and constraints.
 
-
-Add Images:
-
-Place project-logo.png and database-schema.png in the images/ folder.
-Update the repository to reflect these assets.
 
 
 

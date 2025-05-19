@@ -193,14 +193,6 @@ Commit changes: git commit -m "Add your feature".
 Push to your branch: git push origin feature/your-feature.
 Open a pull request with a clear description.
 
-Ensure changes align with SQL best practices and project goals.
-📜 License
-This project is licensed under the MIT License. See the LICENSE file for details.
-📬 Contact
-For questions or feedback:
-
-Open an issue in the repository.
-Contact the maintainer at your-email@example.com.
 
 
 🌟 Let's build a world-class e-commerce database together! 🌟

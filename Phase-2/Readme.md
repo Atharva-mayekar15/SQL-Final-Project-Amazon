@@ -1,11 +1,13 @@
 Amazon Database Project - Phase 2 🛒
+
 📋 Overview
 Phase 2 of the Amazon Database Project dives into querying the e-commerce database set up in Phase 1. With 250 SQL queries (10 per table), we explore data manipulation, analysis, and relationships across 25 tables.
-Goals:
 
+Goals:
 🛠️ Run queries: DDL, DML, operators, functions, joins, clauses.
 📊 Analyze data for an Amazon-like platform.
 🔗 Use existing schema with foreign keys.
+
 
 🗂️ Database Schema
 The 25-table schema from Phase 1 supports products, customers, orders, and more. Key tables and foreign keys:

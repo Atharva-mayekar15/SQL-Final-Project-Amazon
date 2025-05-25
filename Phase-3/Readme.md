@@ -1,6 +1,5 @@
 # 🛒💻 Amazon Database - Phase 3 SQL Queries
-
-![Amazon SQL Banner](https://i.imgur.com/Qv2xQo3.png)  
+ 
 *A mega set of SQL queries for mastering real-world e-commerce databases!*
 
 ---
@@ -22,7 +21,6 @@ This is a **mock Amazon-style** e-commerce database with all the essentials:
 - `Reviews`, `Suppliers`, `Categories`, `Shipments`
 - `Inventory`, `Employees`, `Departments`, and more...
 
-![Database Schema](https://i.imgur.com/WKcMdbS.png)
 
 ---
 
@@ -103,7 +101,6 @@ VALUES (21, 'Wireless Keyboard', ...);
 Made with 💙 by **Atharva Rajesh Mayekar**  
 🎓 BSc-IT | 🧠 Data Analytics Explorer | 🧑‍💻 Frontend Dev in Progress
 
-> Wanna collab or need help? Hit me up on [LinkedIn](https://linkedin.com) or drop a DM 📬
 
 ---
 
@@ -123,6 +120,5 @@ If you're tryna build a frontend dashboard using this DB:
 
 ---
 
-![Thanks](https://i.imgur.com/gU8iYHX.png)
 *Thanks for scrolling!*
 

@@ -1,6 +1,6 @@
 -- Project Phase-2(DDL<ML<QL<C&C<Op)
 
--- Products Table Queries
+-- Table 1:Products Table Queries
 -- Query 1: DDL - Add column for product status
 ALTER TABLE Products
 ADD status VARCHAR(20) DEFAULT 'Available';
@@ -51,7 +51,7 @@ ORDER BY Price DESC;
 
 
 
--- Customers Table Queries
+-- Table 2:Customers Table Queries
 -- Query 1: DDL - Add column for loyalty status
 ALTER TABLE Customers
 ADD loyalty_status VARCHAR(20) DEFAULT 'Regular' COMMENT 'Customer loyalty level';
@@ -97,7 +97,7 @@ FROM Customers
 ORDER BY RegDate DESC;
 
 
--- Orders Table Queries
+-- Table 3:Orders Table Queries
 -- Query 1: DDL - Add column for order priority
 ALTER TABLE Orders
 ADD priority VARCHAR(10) DEFAULT 'Normal' COMMENT 'Order priority level';
@@ -147,7 +147,7 @@ ORDER BY Total DESC;
 
 
 
--- Suppliers Table Queries
+-- Table 4:Suppliers Table Queries
 -- Query 1: DDL - Add column for supplier type
 ALTER TABLE Suppliers
 ADD supplier_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of supplier';
@@ -198,7 +198,7 @@ ORDER BY ContractDate DESC;
 
 
 
--- Categories Table Queries
+-- Table 5: Categories Table Queries
 -- Query 1: DDL - Add column for category status
 ALTER TABLE Categories
 ADD status VARCHAR(20) DEFAULT 'Active' COMMENT 'Category status';
@@ -247,7 +247,7 @@ FROM Categories
 ORDER BY DisplayOrder ASC;
 
 
--- Reviews Table Queries
+-- Table 6: Reviews Table Queries
 -- Query 1: DDL - Add column for review type
 ALTER TABLE Reviews
 ADD review_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of review';
@@ -298,7 +298,7 @@ ORDER BY ReviewDate DESC;
 
 
 
--- Payments Table Queries
+-- Table 7: Payments Table Queries
 -- Query 1: DDL - Add column for payment type
 ALTER TABLE Payments
 ADD payment_type VARCHAR(20) DEFAULT 'Online' COMMENT 'Type of payment';
@@ -348,7 +348,7 @@ ORDER BY PayDate DESC;
 
 
 
--- Shipments Table Queries
+-- Table 8: Shipments Table Queries
 -- Query 1: DDL - Add column for shipment priority
 ALTER TABLE Shipments
 ADD priority VARCHAR(10) DEFAULT 'Standard' COMMENT 'Shipment priority';
@@ -398,7 +398,7 @@ ORDER BY ShipDate DESC;
 
 
 
--- Warehouses Table Queries
+-- Table 9: Warehouses Table Queries
 -- Query 1: DDL - Add column for warehouse type
 ALTER TABLE Warehouses
 ADD warehouse_type VARCHAR(20) DEFAULT 'Distribution' COMMENT 'Type of warehouse';
@@ -447,7 +447,7 @@ FROM Warehouses
 ORDER BY StartDate ASC;
 
 
--- Inventory Table Queries
+-- Table 10: Inventory Table Queries
 -- Query 1: DDL - Add column for stock status
 ALTER TABLE Inventory
 ADD stock_status VARCHAR(20) DEFAULT 'Normal' COMMENT 'Stock status';
@@ -496,7 +496,7 @@ FROM Inventory
 ORDER BY Stock DESC;
 
 
--- Promotions Table Queries
+-- Table 11: Promotions Table Queries
 -- Query 1: DDL - Add column for promotion type
 ALTER TABLE Promotions
 ADD promotion_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of promotion';
@@ -546,7 +546,7 @@ FROM Promotions
 ORDER BY StartDate DESC;
 
 
--- Returns Table Queries
+-- Table 12: Returns Table Queries
 -- Query 1: DDL - Add column for return type
 ALTER TABLE Returns
 ADD return_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of return';
@@ -597,7 +597,7 @@ ORDER BY ReturnDate DESC;
 
 
 
--- Wishlists Table Queries
+-- Table 13: Wishlists Table Queries
 -- Query 1: DDL - Add column for wishlist type
 ALTER TABLE Wishlists
 ADD wishlist_type VARCHAR(20) DEFAULT 'Personal' COMMENT 'Type of wishlist';
@@ -646,7 +646,7 @@ FROM Wishlists
 ORDER BY AddedDate DESC;
 
 
--- Carts Table Queries
+-- Table 14: Carts Table Queries
 -- Query 1: DDL - Add column for cart status
 ALTER TABLE Carts
 ADD cart_status VARCHAR(20) DEFAULT 'Open' COMMENT 'Status of cart';
@@ -696,7 +696,7 @@ ORDER BY Total DESC;
 
 
 
--- Employees Table Queries
+-- Table 15: Employees Table Queries
 -- Query 1: DDL - Add column for employee type
 ALTER TABLE Employees
 ADD employee_type VARCHAR(20) DEFAULT 'Full-Time' COMMENT 'Type of employee';
@@ -746,7 +746,7 @@ FROM Employees
 ORDER BY HireDate ASC;
 
 
--- Departments Table Queries
+-- Table 16: Departments Table Queries
 -- Query 1: DDL - Add column for department type
 ALTER TABLE Departments
 ADD dept_type VARCHAR(20) DEFAULT 'Operational' COMMENT 'Type of department';
@@ -797,7 +797,7 @@ ORDER BY Budget DESC;
 
 
 
--- Transactions Table Queries
+-- Table 17: Transactions Table Queries
 -- Query 1: DDL - Add column for transaction type
 ALTER TABLE Transactions
 ADD transaction_type VARCHAR(20) DEFAULT 'Sale' COMMENT 'Type of transaction';
@@ -847,7 +847,7 @@ ORDER BY TransDate DESC;
 
 
 
--- Discounts Table Queries
+-- Table 18: Discounts Table Queries
 -- Query 1: DDL - Add column for discount type
 ALTER TABLE Discounts
 ADD discount_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of discount';
@@ -897,7 +897,7 @@ FROM Discounts
 ORDER BY StartDate DESC;
 
 
--- Taxes Table Queries
+-- Table 19: Taxes Table Queries
 -- Query 1: DDL - Add column for tax category
 ALTER TABLE Taxes
 ADD tax_category VARCHAR(20) DEFAULT 'Standard' COMMENT 'Category of tax';
@@ -947,7 +947,7 @@ ORDER BY TaxDate DESC;
 
 
 
--- Addresses Table Queries
+-- Table 20: Addresses Table Queries
 -- Query 1: DDL - Add column for address status
 ALTER TABLE Addresses
 ADD address_status VARCHAR(20) DEFAULT 'Valid' COMMENT 'Status of address';
@@ -998,7 +998,7 @@ FROM Addresses
 ORDER BY City ASC;
 
 
--- Subscriptions Table Queries
+-- Table 21: Subscriptions Table Queries
 -- Query 1: DDL - Add column for subscription type
 ALTER TABLE Subscriptions
 ADD sub_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of subscription';
@@ -1050,7 +1050,7 @@ ORDER BY StartDate DESC;
 
 
 
--- GiftCards Table Queries
+-- Table 21: GiftCards Table Queries
 -- Query 1: DDL - Add column for card type
 ALTER TABLE GiftCards
 ADD card_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of gift card';
@@ -1100,7 +1100,7 @@ ORDER BY IssueDate DESC;
 
 
 
--- Coupons Table Queries
+-- Table 23: Coupons Table Queries
 -- Query 1: DDL - Add column for coupon type
 ALTER TABLE Coupons
 ADD coupon_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of coupon';
@@ -1152,7 +1152,7 @@ ORDER BY IssueDate DESC;
 
 
 
--- Feedback Table Queries
+-- Table 24: Feedback Table Queries
 -- Query 1: DDL - Add column for feedback type
 ALTER TABLE Feedback
 ADD feedback_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of feedback';
@@ -1202,7 +1202,7 @@ ORDER BY FeedbackDate DESC;
 
 
 
--- Logs Table Queries
+-- Table 25: Logs Table Queries
 -- Query 1: DDL - Add column for log type
 ALTER TABLE Logs
 ADD log_type VARCHAR(20) DEFAULT 'System' COMMENT 'Type of log';

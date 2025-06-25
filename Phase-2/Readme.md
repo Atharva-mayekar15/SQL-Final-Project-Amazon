@@ -1,93 +1,87 @@
-Amazon Database Project - Phase 2 🛒
+# 🧠 Amazon Database System – SQL Project (Phase 2)
 
-📋 Overview
-Phase 2 of the Amazon Database Project dives into querying the e-commerce database set up in Phase 1. With 250 SQL queries (10 per table), we explore data manipulation, analysis, and relationships across 25 tables.
+📆 **Phase 2 – (DDL<ML<QL<C&C<Op) 
+👨‍💻 **By Atharva Rajesh Mayekar** 
 
-Goals:
-🛠️ Run queries: DDL, DML, operators, functions, joins, clauses.
-📊 Analyze data for an Amazon-like platform.
-🔗 Use existing schema with foreign keys.
+---
 
+## 📌 Phase 2 Objective
 
-🗂️ Database Schema
-The 25-table schema from Phase 1 supports products, customers, orders, and more. Key tables and foreign keys:
+This phase focuses on applying **advanced SQL concepts** to the previously designed Amazon E-Commerce Database. It demonstrates a deeper understanding of query operations, joins, subqueries, constraints like CASCADE, and clean code documentation.
 
+---
 
+## ✅ Requirements Covered
 
-Table
-Purpose
-Foreign Keys
+| Feature                                | Status     |
+|----------------------------------------|------------|
+| 🔹 DDL, DML, DQL                        | ✅ Applied |
+| 🔹 Operators, Clauses, Alias, Functions| ✅ Used    |
+| 🔹 Joins & Subqueries                  | ✅ Done    |
+| 🔹 ON DELETE / UPDATE CASCADE         | ✅ Included|
+| 🔹 Neatly Commented Queries            | ✅ Followed|
 
+---
 
+## 🧠 What’s Included in `Phase 2.sql`
 
-Products
-Product details (name, price)
-category_id → Categories, supplier_id → Suppliers
-
-
-Customers
-Customer info (email, address)
-None
-
-
-Orders
-Purchase tracking
-customer_id → Customers, product_id → Products
+### 🔨 DDL (Data Definition Language)
+- Table updates and structure alterations
+- Added CASCADE constraints
 
 
-Reviews
-Product ratings
-product_id → Products, customer_id → Customers
+✍️ DML (Data Manipulation Language)
+Insert new records for testing joins and subqueries
+
+Update and delete statements with cascading effect
 
 
-Payments
-Order payments
-order_id → Orders, customer_id → Customers
+🔍 DQL (Data Query Language)
+Includes:
+
+SELECT with WHERE, ORDER BY, LIMIT, GROUP BY, HAVING
+
+Aliases using AS
+
+Functions like COUNT(), AVG(), SUM(), NOW(), CONCAT(), ROUND()
+
+-- Example: Find total revenue per seller
+SELECT s.name AS SellerName, SUM(p.amount) AS TotalRevenue
+FROM payments p
+JOIN orders o ON p.order_id = o.id
+JOIN sellers s ON o.seller_id = s.id
+GROUP BY s.name
+ORDER BY TotalRevenue DESC;
 
 
-See all 25 tables in the schema diagram.
-📜 Queries
-Phase 2.sql includes 10 queries per table:
+🔗 Joins & Subqueries
+INNER, LEFT, RIGHT, FULL OUTER joins
 
-DDL: Add columns (e.g., status).
-DML: Update data (e.g., uppercase names).
-Operators: Filter records (e.g., WHERE status = 'Delivered').
-Functions: Aggregations (e.g., AVG(price)).
-Joins: Combine tables (e.g., Products + Categories).
-Clauses: Group/sort (e.g., GROUP BY category_id).
-
-⚙️ Setup
-
-Run Phase 1:
-Use Phase 1.sql to create and populate the database (MySQL/PostgreSQL).
+Nested queries inside SELECT, WHERE, FROM
 
 
-Execute Queries:
-Run Phase 2.sql in your DBMS client (e.g., MySQL Workbench).
+🧼 Clean Query Formatting & Commenting
+✅ All queries are clearly labeled with comments
+
+✅ Used single-line (--) and multi-line (/* */) comments
+
+✅ Queries grouped logically for clarity
 
 
-Verify:
-Check results (e.g., SELECT * FROM Products;).
+💡 What You’ll See in the Code
+📌 100+ lines of advanced SQL demonstrating:
+
+Logical joins
+
+Use of aliases and functions
+
+Smart use of subqueries
+
+Cascading behavior in action
+
+Production-ready formatting
 
 
-
-🛠️ Prerequisites
-
-DBMS (MySQL/PostgreSQL).
-Phase 1 database.
-SQL knowledge.
-
-🤝 Contributing
-
-Fork repo.
-Branch: git checkout -b feature/your-feature.
-Commit: git commit -m "Add feature".
-Push: git push origin feature/your-feature.
-Open pull request.
-
-📜 License
-MIT License.
-📬 Contact
-Open an issue or email your- atharvamayekar7673@example.com.
-
-🌟 Query the future of e-commerce! 🌟
+## 🙌 Author Info
+Built with 💙 by Atharva Rajesh Mayekar
+🎓 BSc IT | SQL Enthusiast | 2025

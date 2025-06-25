@@ -1,3 +1,5 @@
+-- Project Phase-3 (A<Joins<SQ<Fun<B&UD)
+
 -- Products Table Queries
 -- 1. Inner Join: Product details with category names
 SELECT p.product_id, p.product_name, c.category_name, p.price

@@ -1,199 +1,115 @@
-Amazon Database Project - Phase 1 🚀
+# 🛒 Amazon Database System – SQL Project
 
+📆 **Phase 1 – SQL Database Design, Development & Documentation**  
+👨‍💻 **By Atharva Rajesh Mayekar**  
 
-📋 Overview
-Welcome to the Amazon Database Project! This repository hosts the SQL scripts for Phase 1, where we establish the foundation of an e-commerce database inspired by Amazon. This phase focuses on creating the database schema and populating it with sample data to simulate a fully functional online store.
-Key Objectives:
+---
 
-🛠️ Create the Amazon database.
-📊 Define 25 tables to support e-commerce operations.
-📝 Insert 20 sample records per table for testing and development.
+## 📌 Objective
 
-🗂️ Project Scope
-In Phase 1, we lay the groundwork for a robust e-commerce database by:
+Design and implement a complete SQL database system for an Amazon-like e-commerce platform. This project demonstrates core DBMS concepts: table design, relationships, query writing, and real-world data modeling.
 
-Initializing the Amazon database.
-Designing tables for core entities like products, customers, orders, and more.
-Populating each table with sample data to mimic real-world scenarios.
+---
 
+## 🧠 Domain Overview – Amazon E-Commerce
 
-🛠️ Database Schema
-The database comprises 25 tables, each tailored to a specific e-commerce function:
+> **Amazon** is the world’s largest e-commerce platform, connecting millions of users and sellers daily. This project simulates its core functionalities like user registration, product listings, orders, payments, reviews, and logistics — all structured in a relational SQL database.
 
+---
 
+## 🗃️ Database Summary
 
-Table Name
-Purpose
+| Feature                 | Details                          |
+|------------------------|----------------------------------|
+| 📂 Database Name        | `amazon_db`                      |
+| 🧾 Total Tables          | `25`                             |
+| 📋 Records per Table     | `20+`                            |
+| ✅ Constraints Used      | `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `DEFAULT`, `CHECK` |
 
+---
 
+## 🧱 Sample Tables & Entities
 
-Products
-Stores product details (e.g., name, price, stock).
+| Table Name     | Description                            |
+|----------------|----------------------------------------|
+| `customers`    | Stores user details                    |
+| `products`     | Product listings across categories     |
+| `orders`       | Order history with delivery info       |
+| `sellers`      | Seller profiles and inventory          |
+| `payments`     | Payment status per order               |
+| `reviews`      | Customer feedback & ratings            |
 
+> ✅ All 25 tables follow relational structure with valid constraints and normalization.
 
-Customers
-Holds customer info (e.g., name, email, address).
+---
 
+## 🖇️ ER Diagram
 
-Orders
-Tracks customer purchases and order status.
+> ER diagram created using dbdiagram.io / draw.io to show relationships between customers, products, sellers, orders, payments, and more.
 
+_(Diagram available in project folder or during presentation.)_
 
-Suppliers
-Manages supplier information for product sourcing.
+---
 
+## 💾 Data Insertion
 
-Categories
-Organizes products into categories and subcategories.
+All tables are populated with at least 20+ meaningful records:
+- Logical relationships between IDs
+- Realistic email addresses, usernames, prices, and order timestamps
+- Constraints respected (FK/PK, UNIQUE, CHECK)
 
+---
 
-Reviews
-Captures customer product reviews and ratings.
+## 🔍 SQL Queries Executed
 
+### 🔨 DDL (Data Definition Language)
+- `CREATE TABLE`, `DROP TABLE`, `ALTER TABLE`
 
-Payments
-Records payment details for orders.
+### ✍️ DML (Data Manipulation Language)
+- `INSERT INTO`, `UPDATE`, `DELETE`
 
+### 🔎 DQL (Data Query Language)
+- `SELECT`, `JOIN`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`
+- Aggregates: `SUM`, `AVG`, `COUNT`, `MAX`, `MIN`
 
-Shipments
-Manages shipping info, including carriers and tracking.
+---
 
+## 🧠 Real-World Use Cases
 
-Warehouses
-Stores warehouse details for inventory.
+| Use Case                          | Query Technique             |
+|----------------------------------|-----------------------------|
+| 🛒 View all purchases by user     | `SELECT`, `JOIN`, `WHERE`   |
+| 💰 Calculate seller revenue      | `GROUP BY`, `SUM`           |
+| 🧾 Generate invoice per order     | `JOIN`, `ORDER BY`          |
+| 🔍 Filter products by keyword     | `WHERE`, `LIKE`, `LIMIT`    |
+| ⭐ List top-rated items           | `GROUP BY`, `AVG`, `ORDER`  |
 
+---
 
-Inventory
-Tracks product stock across warehouses.
+## 💡 Reflection
 
+### 🧱 Challenges
+- Designing 25 meaningful, interconnected tables
+- Keeping all constraints valid during insertions
+- Writing JOIN-heavy queries with accurate output
 
-Promotions
-Manages discounts and promotional campaigns.
+### 🔧 Solutions
+- Started with ER diagram and schema planning
+- Inserted data in FK-friendly order
+- Verified query output step-by-step
 
+---
 
-Returns
-Handles product returns and refunds.
+## 🧰 Tool Used
 
+- 💻 MySQL 
 
-Wishlists
-Stores customer wishlists for future purchases.
+---
 
+## 🙌 Author Info
 
-Carts
-Manages customer shopping carts.
+Built with 💙 by **Atharva Rajesh Mayekar**  
+🎓 BSc IT | SQL & Data Analyst Enthusiast | 2025  
 
-
-Employees
-Contains employee details (e.g., roles, salaries).
-
-
-Departments
-Organizes company departments and budgets.
-
-
-Transactions
-Logs financial transactions for orders.
-
-
-Discounts
-Tracks discount codes and their applicability.
-
-
-Taxes
-Records tax details based on region.
-
-
-Addresses
-Stores customer billing and shipping addresses.
-
-
-Subscriptions
-Manages subscriptions (e.g., Prime, Music).
-
-
-GiftCards
-Tracks gift card issuance and balances.
-
-
-Coupons
-Manages coupon codes and usage.
-
-
-Feedback
-Captures customer feedback on orders and services.
-
-
-Logs
-Logs system actions for auditing.
-
-
-Each table includes appropriate columns, data types, and constraints to ensure data integrity.
-📜 SQL Scripts
-The core script for Phase 1 is Phase 1.sql, which includes:
-
-Database Creation: Initializes the Amazon database.
-Table Creation: Defines schemas for all 25 tables with primary keys and constraints.
-Data Insertion: Adds 20 sample records per table to simulate a working dataset.
-
-
-
-⚙️ Setup Instructions
-To set up the database locally:
-
-Install a DBMS:
-
-Use MySQL, PostgreSQL, or any SQL-compatible system.
-Download from MySQL or PostgreSQL.
-
-
-Run the SQL Script:
-
-Open your DBMS client (e.g., MySQL Workbench, pgAdmin).
-Copy and paste the contents of Phase 1.sql.
-Execute the script to create the database, tables, and insert records.
-
-
-Verify the Data:
-
-Run queries like SELECT * FROM Products; to check records.
-Inspect the schema to confirm table structures and constraints.
-
-
-
-
-🛠️ Prerequisites
-
-A SQL-compatible DBMS (e.g., MySQL, PostgreSQL).
-Basic SQL knowledge for script execution and verification.
-Permissions to create databases and tables in your DBMS.
-(Optional) A tool to generate a schema diagram (e.g., MySQL Workbench, Lucidchart).
-
-📈 Sample Data
-Each table contains 20 records to simulate realistic e-commerce scenarios:
-
-Products: Includes items like laptops, smartphones, and accessories with details like price and stock.
-Customers: Lists customers from various U.S. cities with contact info.
-Orders: Tracks purchases with quantities, prices, and shipping details.
-
-This data provides a solid foundation for testing and future development.
-🚀 Next Steps
-Phase 2 will expand the project by:
-
-🔗 Adding foreign key constraints for table relationships.
-🛠️ Creating stored procedures and triggers for automation.
-📊 Developing queries for reporting and analytics.
-⚡ Optimizing the database with indexes and performance tweaks.
-
-🤝 Contributing
-We welcome contributions! To get started:
-
-Fork the repository.
-Create a branch: git checkout -b feature/your-feature.
-Commit changes: git commit -m "Add your feature".
-Push to your branch: git push origin feature/your-feature.
-Open a pull request with a clear description.
-
-
-
-🌟 Let's build a world-class e-commerce database together! 🌟
+> _All data in this project is fictional and created for academic purposes only._
 

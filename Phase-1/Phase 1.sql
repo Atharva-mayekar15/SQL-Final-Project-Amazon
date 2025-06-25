@@ -1,4 +1,4 @@
-set SQL_SAFE_UPDATES = 0;
+-- Project Phase-1(DACIV)
 -- Creating the Amazon database
 CREATE DATABASE Amazon;
 USE Amazon;

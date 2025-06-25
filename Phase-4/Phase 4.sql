@@ -1,44 +1,25 @@
 -- Project Phase-4(V&C<SP<WF<D&TCL<Tri)
-
--- **Table 1: Products**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active products with price greater than $100
+-- Table 1: Products
+-- 1. View: Active products with price > $100
 CREATE VIEW ActiveHighPricedProducts AS
 SELECT product_id, product_name, price, category_id, stock_quantity
 FROM Products
 WHERE is_active = TRUE AND price > 100;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of products with supplier and category details
-CREATE VIEW ProductDetails AS
-SELECT p.product_id, p.product_name, p.price, c.category_name, s.supplier_name
+-- 2. View: Products with supplier details
+CREATE VIEW ProductsWithSuppliers AS
+SELECT p.product_id, p.product_name, p.price, s.supplier_name, s.contact_email
 FROM Products p
-JOIN Categories c ON p.category_id = c.category_id
-JOIN Suppliers s ON p.supplier_id = s.supplier_id
-WHERE p.is_active = TRUE;
+JOIN Suppliers s ON p.supplier_id = s.supplier_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of top-rated products with rating >= 4.5
+-- 3. View: Top rated products
 CREATE VIEW TopRatedProducts AS
-SELECT product_id, product_name, rating, category_id
+SELECT product_id, product_name, rating
 FROM Products
-WHERE rating >= 4.5 AND is_active = TRUE;
+WHERE rating >= 4.5
+ORDER BY rating DESC;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of products with low stock (< 50 units)
-CREATE VIEW LowStockProducts AS
-SELECT product_id, product_name, stock_quantity, supplier_id
-FROM Products
-WHERE stock_quantity < 50 AND is_active = TRUE;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to compare product prices with the average price in their category
+-- 4. CTE: Average price by category
 WITH CategoryAvgPrice AS (
     SELECT category_id, AVG(price) AS avg_price
     FROM Products
@@ -47,182 +28,100 @@ WITH CategoryAvgPrice AS (
 SELECT p.product_id, p.product_name, p.price, c.avg_price
 FROM Products p
 JOIN CategoryAvgPrice c ON p.category_id = c.category_id
-WHERE p.is_active = TRUE;
+WHERE p.price > c.avg_price;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list products with supplier contact details
-WITH SupplierContacts AS (
-    SELECT supplier_id, supplier_name, contact_email
-    FROM Suppliers
+-- 5. CTE: Low stock products
+WITH LowStockProducts AS (
+    SELECT product_id, product_name, stock_quantity
+    FROM Products
+    WHERE stock_quantity < 50
 )
-SELECT p.product_id, p.product_name, s.supplier_name, s.contact_email
-FROM Products p
-JOIN SupplierContacts s ON p.supplier_id = s.supplier_id
-WHERE p.is_active = TRUE;
+SELECT p.product_name, p.stock_quantity, s.supplier_name
+FROM LowStockProducts p
+JOIN Products pr ON p.product_id = pr.product_id
+JOIN Suppliers s ON pr.supplier_id = s.supplier_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find products included in orders since 2024
-WITH RecentOrders AS (
-    SELECT product_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
+-- 6. CTE: Ranked products by rating
+WITH RankedProducts AS (
+    SELECT product_id, product_name, rating,
+           RANK() OVER (ORDER BY rating DESC) AS rating_rank
+    FROM Products
+    WHERE rating IS NOT NULL
 )
-SELECT p.product_id, p.product_name, p.price
-FROM Products p
-JOIN RecentOrders ro ON p.product_id = ro.product_id;
+SELECT product_name, rating, rating_rank
+FROM RankedProducts
+WHERE rating_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list products with average review ratings >= 4
-WITH HighRatedReviews AS (
-    SELECT product_id, AVG(rating) AS avg_rating
-    FROM Reviews
-    GROUP BY product_id
-    HAVING avg_rating >= 4
-)
-SELECT p.product_id, p.product_name, h.avg_rating
-FROM Products p
-JOIN HighRatedReviews h ON p.product_id = h.product_id
-WHERE p.is_active = TRUE;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new product
+-- 7. Stored Procedure: Update product price
 DELIMITER //
-CREATE PROCEDURE AddProduct(
-    IN p_product_id INT,
-    IN p_product_name VARCHAR(100),
-    IN p_category_id INT,
-    IN p_price DECIMAL(10,2),
-    IN p_stock_quantity INT,
-    IN p_supplier_id INT,
-    IN p_rating FLOAT,
-    IN p_release_date DATE,
-    IN p_is_active BOOLEAN,
-    IN p_description TEXT
-)
+CREATE PROCEDURE UpdateProductPrice(IN prod_id INT, IN new_price DECIMAL(10,2))
 BEGIN
-    INSERT INTO Products (product_id, product_name, category_id, price, stock_quantity, supplier_id, rating, release_date, is_active, description)
-    VALUES (p_product_id, p_product_name, p_category_id, p_price, p_stock_quantity, p_supplier_id, p_rating, p_release_date, p_is_active, p_description);
+    UPDATE Products SET price = new_price WHERE product_id = prod_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a product's price
+-- 8. Stored Procedure: Deactivate low stock products
 DELIMITER //
-CREATE PROCEDURE UpdateProductPrice(
-    IN p_product_id INT,
-    IN p_new_price DECIMAL(10,2)
-)
+CREATE PROCEDURE DeactivateLowStockProducts()
 BEGIN
-    UPDATE Products
-    SET price = p_new_price
-    WHERE product_id = p_product_id;
+    UPDATE Products SET is_active = FALSE WHERE stock_quantity = 0;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a product
+-- 9. Stored Procedure: Get products by category
 DELIMITER //
-CREATE PROCEDURE DeleteProduct(
-    IN p_product_id INT
-)
+CREATE PROCEDURE GetProductsByCategory(IN cat_id INT)
 BEGIN
-    DELETE FROM Products
-    WHERE product_id = p_product_id;
+    SELECT product_id, product_name, price
+    FROM Products
+    WHERE category_id = cat_id AND is_active = TRUE;
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve product details with category and supplier info
-DELIMITER //
-CREATE PROCEDURE GetProductDetails(
-    IN p_product_id INT
-)
-BEGIN
-    SELECT p.product_id, p.product_name, p.price, c.category_name, s.supplier_name
-    FROM Products p
-    JOIN Categories c ON p.category_id = c.category_id
-    JOIN Suppliers s ON p.supplier_id = s.supplier_id
-    WHERE p.product_id = p_product_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new gaming console product
-INSERT INTO Products (product_id, product_name, category_id, price, stock_quantity, supplier_id, rating, release_date, is_active, description)
-VALUES (21, 'Gaming Console', 1, 399.99, 100, 101, 4.7, '2025-01-01', TRUE, 'Next-gen gaming console');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates stock quantity for product ID 1 by adding 50 units
-UPDATE Products
-SET stock_quantity = stock_quantity + 50
-WHERE product_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a discontinued product with product ID 1
-DELETE FROM Products
-WHERE product_id = 1 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates product rating based on average review rating within a transaction
+-- 10. TCL: Update stock with rollback
 START TRANSACTION;
-UPDATE Products p
-SET rating = (
-    SELECT AVG(rating)
-    FROM Reviews r
-    WHERE r.product_id = p.product_id
-)
-WHERE p.product_id = 1;
+UPDATE Products SET stock_quantity = stock_quantity - 10 WHERE product_id = 1;
+UPDATE Products SET stock_quantity = stock_quantity - 5 WHERE product_id = 2;
+-- Simulate error
+INSERT INTO Products (product_id) VALUES (1); -- Duplicate key error
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit price update
+START TRANSACTION;
+UPDATE Products SET price = price * 1.1 WHERE category_id = 1;
+SAVEPOINT price_updated;
+UPDATE Products SET price = price * 1.05 WHERE category_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record product insertions
-CREATE TABLE ProductLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    product_id INT,
-    action VARCHAR(50),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogProductInsert
-AFTER INSERT ON Products
-FOR EACH ROW
-BEGIN
-    INSERT INTO ProductLog (product_id, action, log_date, user_id)
-    VALUES (NEW.product_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback stock update
+START TRANSACTION;
+UPDATE Products SET stock_quantity = stock_quantity + 20 WHERE product_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log product price updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Products TO 'user1'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Products TO 'inventory_manager';
+
+-- 15. Trigger: Log price changes
 DELIMITER //
-CREATE TRIGGER LogProductPriceUpdate
+CREATE TRIGGER LogPriceChange
 AFTER UPDATE ON Products
 FOR EACH ROW
 BEGIN
     IF OLD.price != NEW.price THEN
-        INSERT INTO ProductLog (product_id, action, log_date, user_id)
-        VALUES (NEW.product_id, CONCAT('PRICE_UPDATE: ', OLD.price, ' to ', NEW.price), NOW(), USER());
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Price Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Product ID: ', NEW.product_id, ' Price changed from ', OLD.price, ' to ', NEW.price),
+                'Products', 'Price adjustment');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative stock quantities
+
+-- 16. Trigger: Prevent negative stock
 DELIMITER //
 CREATE TRIGGER PreventNegativeStock
 BEFORE UPDATE ON Products
@@ -232,2536 +131,788 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Stock quantity cannot be negative';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a table and trigger to update category product count
-CREATE TABLE CategoryProductCount (
-    category_id INT PRIMARY KEY,
-    product_count INT,
-    FOREIGN KEY (category_id) REFERENCES Categories(category_id)
-);
+-- 17. Trigger: Deactivate on stock depletion
 DELIMITER //
-CREATE TRIGGER UpdateCategoryProductCount
-AFTER INSERT ON Products
-FOR EACH ROW
-BEGIN
-    INSERT INTO CategoryProductCount (category_id, product_count)
-    VALUES (NEW.category_id, (SELECT COUNT(*) FROM Products WHERE category_id = NEW.category_id))
-    ON DUPLICATE KEY UPDATE product_count = (SELECT COUNT(*) FROM Products WHERE category_id = NEW.category_id);
-END //
-DELIMITER ;
-
--- **Table 2: Customers**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of customers registered after January 1, 2024
-CREATE VIEW RecentCustomers AS
-SELECT customer_id, first_name, last_name, email, registration_date
-FROM Customers
-WHERE registration_date >= '2024-01-01';
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of customers with their default addresses
-CREATE VIEW CustomerAddresses AS
-SELECT c.customer_id, c.first_name, c.last_name, a.street, a.city
-FROM Customers c
-JOIN Addresses a ON c.customer_id = a.customer_id
-WHERE a.is_default = TRUE;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of customers with active subscriptions
-CREATE VIEW SubscribedCustomers AS
-SELECT c.customer_id, c.first_name, s.plan_name
-FROM Customers c
-JOIN Subscriptions s ON c.customer_id = s.customer_id
-WHERE s.is_active = TRUE;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of customers with more than one order
-CREATE VIEW FrequentCustomers AS
-SELECT c.customer_id, c.first_name, COUNT(o.order_id) AS order_count
-FROM Customers c
-JOIN Orders o ON c.customer_id = o.customer_id
-GROUP BY c.customer_id, c.first_name
-HAVING order_count > 1;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count customers by state
-WITH CustomerByState AS (
-    SELECT state, COUNT(*) AS customer_count
-    FROM Customers
-    GROUP BY state
-)
-SELECT state, customer_count
-FROM CustomerByState
-WHERE customer_count > 1;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list customers with their payment methods
-WITH CustomerPayments AS (
-    SELECT customer_id, payment_type
-    FROM Payment_Methods
-)
-SELECT c.customer_id, c.first_name, cp.payment_type
-FROM Customers c
-JOIN CustomerPayments cp ON c.customer_id = cp.customer_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find customers with recent orders
-WITH RecentOrders AS (
-    SELECT customer_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
-)
-SELECT c.customer_id, c.first_name, c.last_name
-FROM Customers c
-JOIN RecentOrders ro ON c.customer_id = ro.customer_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list customers with active addresses
-WITH ActiveAddresses AS (
-    SELECT customer_id
-    FROM Addresses
-    WHERE is_default = TRUE
-)
-SELECT c.customer_id, c.first_name, c.email
-FROM Customers c
-JOIN ActiveAddresses aa ON c.customer_id = aa.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new customer
-DELIMITER //
-CREATE PROCEDURE AddCustomer(
-    IN p_customer_id INT,
-    IN p_first_name VARCHAR(50),
-    IN p_last_name VARCHAR(50),
-    IN p_email VARCHAR(100),
-    IN p_phone_number VARCHAR(15),
-    IN p_state VARCHAR(50),
-    IN p_registration_date DATE
-)
-BEGIN
-    INSERT INTO Customers (customer_id, first_name, last_name, email, phone_number, state, registration_date)
-    VALUES (p_customer_id, p_first_name, p_last_name, p_email, p_phone_number, p_state, p_registration_date);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a customer's email
-DELIMITER //
-CREATE PROCEDURE UpdateCustomerEmail(
-    IN p_customer_id INT,
-    IN p_new_email VARCHAR(100)
-)
-BEGIN
-    UPDATE Customers
-    SET email = p_new_email
-    WHERE customer_id = p_customer_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a customer
-DELIMITER //
-CREATE PROCEDURE DeleteCustomer(
-    IN p_customer_id INT
-)
-BEGIN
-    DELETE FROM Customers
-    WHERE customer_id = p_customer_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve customer details
-DELIMITER //
-CREATE PROCEDURE GetCustomerDetails(
-    IN p_customer_id INT
-)
-BEGIN
-    SELECT c.customer_id, c.first_name, c.last_name, a.street, a.city
-    FROM Customers c
-    LEFT JOIN Addresses a ON c.customer_id = a.customer_id
-    WHERE c.customer_id = p_customer_id AND (a.is_default = TRUE OR a.is_default IS NULL);
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new customer
-INSERT INTO Customers (customer_id, first_name, last_name, email, phone_number, state, registration_date)
-VALUES (201, 'John', 'Smith', 'john.smith@email.com', '123-456-7890', 'CA', '2025-06-07');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a customer's phone number
-UPDATE Customers
-SET phone_number = '987-654-3210'
-WHERE customer_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a customer with no orders
-DELETE FROM Customers
-WHERE customer_id = 1
-AND NOT EXISTS (
-    SELECT 1 FROM Orders WHERE customer_id = 1
-);
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates customer state within a transaction
-START TRANSACTION;
-UPDATE Customers
-SET state = 'NY'
-WHERE customer_id = 1;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record customer insertions
-CREATE TABLE CustomerLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    customer_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogCustomerInsert
-AFTER INSERT ON Customers
-FOR EACH ROW
-BEGIN
-    INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-    VALUES (NEW.customer_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log customer email updates
-DELIMITER //
-CREATE TRIGGER LogCustomerEmailUpdate
-AFTER UPDATE ON Customers
-FOR EACH ROW
-BEGIN
-    IF OLD.email != NEW.email THEN
-        INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-        VALUES (NEW.customer_id, CONCAT('EMAIL_UPDATE: ', OLD.email, ' to ', NEW.email), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent duplicate emails
-DELIMITER //
-CREATE TRIGGER BeforeCustomerInsert
-BEFORE INSERT ON Customers
-FOR EACH ROW
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM Customers WHERE email = NEW.email
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Email already exists';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Triggers
--- Description: Creates a trigger to log customer deletions
-DELIMITER //
-CREATE TRIGGER LogCustomerDelete
-AFTER DELETE ON Customers
-FOR EACH ROW
-BEGIN
-    INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-    VALUES (OLD.customer_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 3: Categories**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active categories
-CREATE VIEW ActiveCategories AS
-SELECT category_id, category_name, parent_category_id
-FROM Categories
-WHERE is_active = TRUE;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of categories with product counts
-CREATE VIEW CategoryProductCounts AS
-SELECT c.category_id, c.category_name,্র
-
-System: Apologies for the interruption. Here is the complete corrected SQL file with `DELIMITER` statements added to all triggers and the typo in the `LogCustomerInsert` trigger fixed (changing `customerLog` to `CustomerLog`). All non-trigger queries remain unchanged, and the structure, comments, and query numbering are preserved as in the original file.
-
-<xaiArtifact artifact_id="39887b4d-992a-46b5-b68a-90ed0247ea83" artifact_version_id="3ca6d3a4-611a-438c-82d2-29dcc82c1e71" title="corrected_phase4.sql" contentType="text/sql">
--- **Table 1: Products**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active products with price greater than $100
-CREATE VIEW ActiveHighPricedProducts AS
-SELECT product_id, product_name, price, category_id, stock_quantity
-FROM Products
-WHERE is_active = TRUE AND price > 100;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of products with supplier and category details
-CREATE VIEW ProductDetails AS
-SELECT p.product_id, p.product_name, p.price, c.category_name, s.supplier_name
-FROM Products p
-JOIN Categories c ON p.category_id = c.category_id
-JOIN Suppliers s ON p.supplier_id = s.supplier_id
-WHERE p.is_active = TRUE;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of top-rated products with rating >= 4.5
-CREATE VIEW TopRatedProducts AS
-SELECT product_id, product_name, rating, category_id
-FROM Products
-WHERE rating >= 4.5 AND is_active = TRUE;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of products with low stock (< 50 units)
-CREATE VIEW LowStockProducts AS
-SELECT product_id, product_name, stock_quantity, supplier_id
-FROM Products
-WHERE stock_quantity < 50 AND is_active = TRUE;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to compare product prices with the average price in their category
-WITH CategoryAvgPrice AS (
-    SELECT category_id, AVG(price) AS avg_price
-    FROM Products
-    GROUP BY category_id
-)
-SELECT p.product_id, p.product_name, p.price, c.avg_price
-FROM Products p
-JOIN CategoryAvgPrice c ON p.category_id = c.category_id
-WHERE p.is_active = TRUE;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list products with supplier contact details
-WITH SupplierContacts AS (
-    SELECT supplier_id, supplier_name, contact_email
-    FROM Suppliers
-)
-SELECT p.product_id, p.product_name, s.supplier_name, s.contact_email
-FROM Products p
-JOIN SupplierContacts s ON p.supplier_id = s.supplier_id
-WHERE p.is_active = TRUE;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find products included in orders since 2024
-WITH RecentOrders AS (
-    SELECT product_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
-)
-SELECT p.product_id, p.product_name, p.price
-FROM Products p
-JOIN RecentOrders ro ON p.product_id = ro.product_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list products with average review ratings >= 4
-WITH HighRatedReviews AS (
-    SELECT product_id, AVG(rating) AS avg_rating
-    FROM Reviews
-    GROUP BY product_id
-    HAVING avg_rating >= 4
-)
-SELECT p.product_id, p.product_name, h.avg_rating
-FROM Products p
-JOIN HighRatedReviews h ONས
-
-System: I apologize for the previous response being cut off. Below is the continuation of the corrected SQL file, starting from the point where it was interrupted, with all triggers properly wrapped with `DELIMITER //` and `DELIMITER ;`, and the typo in the `LogCustomerInsert` trigger fixed (`customerLog` to `CustomerLog`). The rest of the file remains unchanged except for the trigger sections (Queries 17–20 for each table) and the typo correction.
-
-<xaiArtifact artifact_id="39887b4d-992a-46b5-b68a-90ed0247ea83" artifact_version_id="7f85fbcd-64d6-4310-976f-ee6e092ee40a" title="corrected_phase4.sql" contentType="text/sql">
--- **Table 1: Products** (continued)
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record product insertions
-CREATE TABLE ProductLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    product_id INT,
-    action VARCHAR(50),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogProductInsert
-AFTER INSERT ON Products
-FOR EACH ROW
-BEGIN
-    INSERT INTO ProductLog (product_id, action, log_date, user_id)
-    VALUES (NEW.product_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log product price updates
-DELIMITER //
-CREATE TRIGGER LogProductPriceUpdate
+CREATE TRIGGER DeactivateOnStockDepletion
 AFTER UPDATE ON Products
 FOR EACH ROW
 BEGIN
-    IF OLD.price != NEW.price THEN
-        INSERT INTO ProductLog (product_id, action, log_date, user_id)
-        VALUES (NEW.product_id, CONCAT('PRICE_UPDATE: ', OLD.price, ' to ', NEW.price), NOW(), USER());
+    IF NEW.stock_quantity = 0 THEN
+        UPDATE Products SET is_active = FALSE WHERE product_id = NEW.product_id;
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative stock quantities
-DELIMITER //
-CREATE TRIGGER PreventNegativeStock
-BEFORE UPDATE ON Products
-FOR EACH ROW
-BEGIN
-    IF NEW.stock_quantity < 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Stock quantity cannot be negative';
-    END IF;
-END //
-DELIMITER ;
+-- 18. Window Function: Rank products by price
+SELECT product_id, product_name, price, category_id,
+       RANK() OVER (PARTITION BY category_id ORDER BY price DESC) AS price_rank
+FROM Products;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a table and trigger to update category product count
-CREATE TABLE CategoryProductCount (
-    category_id INT PRIMARY KEY,
-    product_count INT,
-    FOREIGN KEY (category_id) REFERENCES Categories(category_id)
-);
-DELIMITER //
-CREATE TRIGGER UpdateCategoryProductCount
-AFTER INSERT ON Products
-FOR EACH ROW
-BEGIN
-    INSERT INTO CategoryProductCount (category_id, product_count)
-    VALUES (NEW.category_id, (SELECT COUNT(*) FROM Products WHERE category_id = NEW.category_id))
-    ON DUPLICATE KEY UPDATE product_count = (SELECT COUNT(*) FROM Products WHERE category_id = NEW.category_id);
-END //
-DELIMITER ;
+-- 19. Window Function: Running total stock
+SELECT product_id, product_name, stock_quantity, category_id,
+       SUM(stock_quantity) OVER (PARTITION BY category_id ORDER BY product_id) AS running_stock
+FROM Products;
 
--- **Table 2: Customers**
+-- 20. Window Function: Price percentage by category
+SELECT product_id, product_name, price, category_id,
+       price / SUM(price) OVER (PARTITION BY category_id) * 100 AS price_percentage
+FROM Products;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of customers registered after January 1, 2024
+-- Table 2: Customers
+-- 1. View: Recently registered customers
 CREATE VIEW RecentCustomers AS
-SELECT customer_id, first_name, last_name, email, registration_date
+SELECT customer_id, first_name, last_name, registration_date
 FROM Customers
-WHERE registration_date >= '2024-01-01';
+WHERE registration_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH);
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of customers with their default addresses
-CREATE VIEW CustomerAddresses AS
-SELECT c.customer_id, c.first_name, c.last_name, a.street, a.city
+-- 2. View: Customers with orders
+CREATE VIEW CustomersWithOrders AS
+SELECT c.customer_id, c.first_name, c.last_name, COUNT(o.order_id) AS order_count
 FROM Customers c
-JOIN Addresses a ON c.customer_id = a.customer_id
-WHERE a.is_default = TRUE;
+LEFT JOIN Orders o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of customers with active subscriptions
-CREATE VIEW SubscribedCustomers AS
-SELECT c.customer_id, c.first_name, s.plan_name
-FROM Customers c
-JOIN Subscriptions s ON c.customer_id = s.customer_id
-WHERE s.is_active = TRUE;
+-- 3. View: Customer contact details
+CREATE VIEW CustomerContacts AS
+SELECT customer_id, first_name, last_name, email, phone
+FROM Customers
+WHERE email IS NOT NULL;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of customers with more than one order
-CREATE VIEW FrequentCustomers AS
-SELECT c.customer_id, c.first_name, COUNT(o.order_id) AS order_count
-FROM Customers c
-JOIN Orders o ON c.customer_id = o.customer_id
-GROUP BY c.customer_id, c.first_name
-HAVING order_count > 1;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count customers by state
-WITH CustomerByState AS (
-    SELECT state, COUNT(*) AS customer_count
-    FROM Customers
-    GROUP BY state
-)
-SELECT state, customer_count
-FROM CustomerByState
-WHERE customer_count > 1;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list customers with their payment methods
-WITH CustomerPayments AS (
-    SELECT customer_id, payment_type
-    FROM Payment_Methods
-)
-SELECT c.customer_id, c.first_name, cp.payment_type
-FROM Customers c
-JOIN CustomerPayments cp ON c.customer_id = cp.customer_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find customers with recent orders
-WITH RecentOrders AS (
-    SELECT customer_id
+-- 4. CTE: High-value customers
+WITH HighValueCustomers AS (
+    SELECT customer_id, SUM(total_price) AS total_spent
     FROM Orders
-    WHERE order_date >= '2024-01-01'
+    GROUP BY customer_id
 )
-SELECT c.customer_id, c.first_name, c.last_name
-FROM Customers c
-JOIN RecentOrders ro ON c.customer_id = ro.customer_id;
+SELECT c.first_name, c.last_name, h.total_spent
+FROM HighValueCustomers h
+JOIN Customers c ON h.customer_id = c.customer_id
+WHERE h.total_spent > 1000;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list customers with active addresses
-WITH ActiveAddresses AS (
-    SELECT customer_id
-    FROM Addresses
-    WHERE is_default = TRUE
-)
-SELECT c.customer_id, c.first_name, c.email
-FROM Customers c
-JOIN ActiveAddresses aa ON c.customer_id = aa.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new customer
-DELIMITER //
-CREATE PROCEDURE AddCustomer(
-    IN p_customer_id INT,
-    IN p_first_name VARCHAR(50),
-    IN p_last_name VARCHAR(50),
-    IN p_email VARCHAR(100),
-    IN p_phone_number VARCHAR(15),
-    IN p_state VARCHAR(50),
-    IN p_registration_date DATE
-)
-BEGIN
-    INSERT INTO Customers (customer_id, first_name, last_name, email, phone_number, state, registration_date)
-    VALUES (p_customer_id, p_first_name, p_last_name, p_email, p_phone_number, p_state, p_registration_date);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a customer's email
-DELIMITER //
-CREATE PROCEDURE UpdateCustomerEmail(
-    IN p_customer_id INT,
-    IN p_new_email VARCHAR(100)
-)
-BEGIN
-    UPDATE Customers
-    SET email = p_new_email
-    WHERE customer_id = p_customer_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a customer
-DELIMITER //
-CREATE PROCEDURE DeleteCustomer(
-    IN p_customer_id INT
-)
-BEGIN
-    DELETE FROM Customers
-    WHERE customer_id = p_customer_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve customer details
-DELIMITER //
-CREATE PROCEDURE GetCustomerDetails(
-    IN p_customer_id INT
-)
-BEGIN
-    SELECT c.customer_id, c.first_name, c.last_name, a.street, a.city
-    FROM Customers c
-    LEFT JOIN Addresses a ON c.customer_id = a.customer_id
-    WHERE c.customer_id = p_customer_id AND (a.is_default = TRUE OR a.is_default IS NULL);
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new customer
-INSERT INTO Customers (customer_id, first_name, last_name, email, phone_number, state, registration_date)
-VALUES (201, 'John', 'Smith', 'john.smith@email.com', '123-456-7890', 'CA', '2025-06-07');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a customer's phone number
-UPDATE Customers
-SET phone_number = '987-654-3210'
-WHERE customer_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a customer with no orders
-DELETE FROM Customers
-WHERE customer_id = 1
-AND NOT EXISTS (
-    SELECT 1 FROM Orders WHERE customer_id = 1
-);
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates customer state within a transaction
-START TRANSACTION;
-UPDATE Customers
-SET state = 'NY'
-WHERE customer_id = 1;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record customer insertions
-CREATE TABLE CustomerLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    customer_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogCustomerInsert
-AFTER INSERT ON Customers
-FOR EACH ROW
-BEGIN
-    INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-    VALUES (NEW.customer_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log customer email updates
-DELIMITER //
-CREATE TRIGGER LogCustomerEmailUpdate
-AFTER UPDATE ON Customers
-FOR EACH ROW
-BEGIN
-    IF OLD.email != NEW.email THEN
-        INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-        VALUES (NEW.customer_id, CONCAT('EMAIL_UPDATE: ', OLD.email, ' to ', NEW.email), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent duplicate emails
-DELIMITER //
-CREATE TRIGGER BeforeCustomerInsert
-BEFORE INSERT ON Customers
-FOR EACH ROW
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM Customers WHERE email = NEW.email
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Email already exists';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log customer deletions
-DELIMITER //
-CREATE TRIGGER LogCustomerDelete
-AFTER DELETE ON Customers
-FOR EACH ROW
-BEGIN
-    INSERT INTO CustomerLog (customer_id, action, log_date, user_id)
-    VALUES (OLD.customer_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 3: Categories**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active categories
-CREATE VIEW ActiveCategories AS
-SELECT category_id, category_name, parent_category_id
-FROM Categories
-WHERE is_active = TRUE;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of categories with product counts
-CREATE VIEW CategoryProductCounts AS
-SELECT c.category_id, c.category_name, COUNT(p.product_id) AS product_count
-FROM Categories c
-LEFT JOIN Products p ON c.category_id = p.category_id
-GROUP BY c.category_id, c.category_name;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of top-level categories
-CREATE VIEW TopLevelCategories AS
-SELECT category_id, category_name
-FROM Categories
-WHERE parent_category_id IS NULL AND is_active = TRUE;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of categories with subcategories
-CREATE VIEW CategoryHierarchy AS
-SELECT c1.category_id, c1.category_name, c2.category_name AS subcategory_name
-FROM Categories c1
-LEFT JOIN Categories c2 ON c2.parent_category_id = c1.category_id
-WHERE c1.is_active = TRUE;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to list categories with their parent categories
-WITH ParentCategories AS (
-    SELECT category_id, category_name
-    FROM Categories
-    WHERE parent_category_id IS NULL
-)
-SELECT c.category_id, c.category_name, pc.category_name AS parent_name
-FROM Categories c
-LEFT JOIN ParentCategories pc ON c.parent_category_id = pc.category_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to count products per category
-WITH CategoryCounts AS (
-    SELECT category_id, COUNT(*) AS product_count
-    FROM Products
-    GROUP BY category_id
-)
-SELECT c.category_id, c.category_name, COALESCE(cc.product_count, 0) AS product_count
-FROM Categories c
-LEFT JOIN CategoryCounts cc ON c.category_id = cc.category_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to list active categories with products
-WITH ActiveProducts AS (
-    SELECT category_id
-    FROM Products
-    WHERE is_active = TRUE
-)
-SELECT c.category_id, c.category_name
-FROM Categories c
-JOIN ActiveProducts ap ON c.category_id = ap.category_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to find categories with high-priced products
-WITH HighPricedProducts AS (
-    SELECT category_id
-    FROM Products
-    WHERE price > 100
-)
-SELECT c.category_id, c.category_name
-FROM Categories c
-JOIN HighPricedProducts hpp ON c.category_id = hpp.category_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new category
-DELIMITER //
-CREATE PROCEDURE AddCategory(
-    IN p_category_id INT,
-    IN p_category_name VARCHAR(100),
-    IN p_parent_category_id INT,
-    IN p_is_active BOOLEAN
-)
-BEGIN
-    INSERT INTO Categories (category_id, category_name, parent_category_id, is_active)
-    VALUES (p_category_id, p_category_name, p_parent_category_id, p_is_active);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a category's name
-DELIMITER //
-CREATE PROCEDURE UpdateCategoryName(
-    IN p_category_id INT,
-    IN p_new_name VARCHAR(100)
-)
-BEGIN
-    UPDATE Categories
-    SET category_name = p_new_name
-    WHERE category_id = p_category_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a category
-DELIMITER //
-CREATE PROCEDURE DeleteCategory(
-    IN p_category_id INT
-)
-BEGIN
-    DELETE FROM Categories
-    WHERE category_id = p_category_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve category details
-DELIMITER //
-CREATE PROCEDURE GetCategoryDetails(
-    IN p_category_id INT
-)
-BEGIN
-    SELECT c.category_id, c.category_name, c2.category_name AS parent_name
-    FROM Categories c
-    LEFT JOIN Categories c2 ON c.parent_category_id = c2.category_id
-    WHERE c.category_id = p_category_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new category
-INSERT INTO Categories (category_id, category_name, parent_category_id, is_active)
-VALUES (101, 'Electronics', NULL, TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a category's active status
-UPDATE Categories
-SET is_active = FALSE
-WHERE category_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive category
-DELETE FROM Categories
-WHERE category_id = 1 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates category name within a transaction
-START TRANSACTION;
-UPDATE Categories
-SET category_name = 'New Electronics'
-WHERE category_id = 1;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record category insertions
-CREATE TABLE CategoryLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    category_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogCategoryInsert
-AFTER INSERT ON Categories
-FOR EACH ROW
-BEGIN
-    INSERT INTO CategoryLog (category_id, action, log_date, user_id)
-    VALUES (NEW.category_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log category name updates
-DELIMITER //
-CREATE TRIGGER LogCategoryNameUpdate
-AFTER UPDATE ON Categories
-FOR EACH ROW
-BEGIN
-    IF OLD.category_name != NEW.category_name THEN
-        INSERT INTO CategoryLog (category_id, action, log_date, user_id)
-        VALUES (NEW.category_id, CONCAT('NAME_UPDATE: ', OLD.category_name, ' to ', NEW.category_name), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent deleting active categories
-DELIMITER //
-CREATE TRIGGER PreventActiveCategoryDelete
-BEFORE DELETE ON Categories
-FOR EACH ROW
-BEGIN
-    IF OLD.is_active = TRUE THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot delete active category';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log category deletions
-DELIMITER //
-CREATE TRIGGER LogCategoryDelete
-AFTER DELETE ON Categories
-FOR EACH ROW
-BEGIN
-    INSERT INTO CategoryLog (category_id, action, log_date, user_id)
-    VALUES (OLD.category_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 4: Orders**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of orders placed in 2025
-CREATE VIEW RecentOrders AS
-SELECT order_id, customer_id, order_date, total_amount
-FROM Orders
-WHERE YEAR(order_date) = 2025;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of orders with customer details
-CREATE VIEW OrderCustomerDetails AS
-SELECT o.order_id, o.order_date, c.first_name, c.last_name
-FROM Orders o
-JOIN Customers c ON o.customer_id = c.customer_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of orders with high total amounts
-CREATE VIEW HighValueOrders AS
-SELECT order_id, customer_id, total_amount
-FROM Orders
-WHERE total_amount > 500;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of orders with payment status
-CREATE VIEW OrderPaymentStatus AS
-SELECT o.order_id, o.order_date, p.payment_status
-FROM Orders o
-JOIN Payments p ON o.order_id = p.order_id;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count orders by customer
-WITH OrderCounts AS (
+-- 5. CTE: Customer order frequency
+WITH OrderFrequency AS (
     SELECT customer_id, COUNT(*) AS order_count
     FROM Orders
     GROUP BY customer_id
 )
-SELECT c.customer_id, c.first_name, oc.order_count
-FROM Customers c
-JOIN OrderCounts oc ON c.customer_id = oc.customer_id;
+SELECT c.first_name, c.last_name, o.order_count
+FROM OrderFrequency o
+JOIN Customers c ON o.customer_id = c.customer_id
+WHERE o.order_count > 2;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list orders with product details
-WITH OrderProducts AS (
-    SELECT order_id, product_id
-    FROM Order_Items
+-- 6. CTE: Latest registrations
+WITH LatestRegistrations AS (
+    SELECT customer_id, first_name, last_name, registration_date,
+           RANK() OVER (ORDER BY registration_date DESC) AS reg_rank
+    FROM Customers
 )
-SELECT o.order_id, o.order_date, p.product_name
-FROM Orders o
-JOIN OrderProducts op ON o.order_id = op.order_id
-JOIN Products p ON op.product_id = p.product_id;
+SELECT first_name, last_name, registration_date, reg_rank
+FROM LatestRegistrations
+WHERE reg_rank <= 5;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find orders with pending payments
-WITH PendingPayments AS (
-    SELECT order_id
-    FROM Payments
-    WHERE payment_status = 'Pending'
-)
-SELECT o.order_id, o.order_date, o.total_amount
-FROM Orders o
-JOIN PendingPayments pp ON o.order_id = pp.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list orders by month
-WITH OrdersByMonth AS (
-    SELECT MONTH(order_date) AS order_month, COUNT(*) AS order_count
-    FROM Orders
-    GROUP BY MONTH(order_date)
-)
-SELECT order_month, order_count
-FROM OrdersByMonth;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new order
+-- 7. Stored Procedure: Update customer email
 DELIMITER //
-CREATE PROCEDURE AddOrder(
-    IN p_order_id INT,
-    IN p_customer_id INT,
-    IN p_order_date DATE,
-    IN p_total_amount DECIMAL(10,2),
-    IN p_status VARCHAR(50)
-)
+CREATE PROCEDURE UpdateCustomerEmail(IN cust_id INT, IN new_email VARCHAR(100))
 BEGIN
-    INSERT INTO Orders (order_id, customer_id, order_date, total_amount, status)
-    VALUES (p_order_id, p_customer_id, p_order_date, p_total_amount, p_status);
+    UPDATE Customers SET email = new_email WHERE customer_id = cust_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update an order's status
+-- 8. Stored Procedure: Delete inactive customers
 DELIMITER //
-CREATE PROCEDURE UpdateOrderStatus(
-    IN p_order_id INT,
-    IN p_new_status VARCHAR(50)
-)
+CREATE PROCEDURE DeleteInactiveCustomers()
 BEGIN
-    UPDATE Orders
-    SET status = p_new_status
-    WHERE order_id = p_order_id;
+    DELETE FROM Customers WHERE registration_date < DATE_SUB(CURDATE(), INTERVAL 2 YEAR);
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete an order
+-- 9. Stored Procedure: Get customer details
 DELIMITER //
-CREATE PROCEDURE DeleteOrder(
-    IN p_order_id INT
-)
+CREATE PROCEDURE GetCustomerDetails(IN cust_id INT)
 BEGIN
-    DELETE FROM Orders
-    WHERE order_id = p_order_id;
+    SELECT customer_id, first_name, last_name, email, registration_date
+    FROM Customers
+    WHERE customer_id = cust_id;
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve order details
-DELIMITER //
-CREATE PROCEDURE GetOrderDetails(
-    IN p_order_id INT
-)
-BEGIN
-    SELECT o.order_id, o.order_date, c.first_name, c.last_name, o.total_amount
-    FROM Orders o
-    JOIN Customers c ON o.customer_id = c.customer_id
-    WHERE o.order_id = p_order_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new order
-INSERT INTO Orders (order_id, customer_id, order_date, total_amount, status)
-VALUES (301, 1, '2025-06-07', 299.99, 'Pending');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates an order's total amount
-UPDATE Orders
-SET total_amount = 350.00
-WHERE order_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a cancelled order
-DELETE FROM Orders
-WHERE order_id = 1 AND status = 'Cancelled';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates order status within a transaction
+-- 10. TCL: Update customer details with rollback
 START TRANSACTION;
-UPDATE Orders
-SET status = 'Shipped'
-WHERE order_id = 1;
+UPDATE Customers SET email = 'new.email@email.com' WHERE customer_id = 1;
+UPDATE Customers SET phone = '555-9999' WHERE customer_id = 2;
+-- Simulate error
+INSERT INTO Customers (customer_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit address update
+START TRANSACTION;
+UPDATE Customers SET address = '123 New St' WHERE customer_id = 3;
+SAVEPOINT address_updated;
+UPDATE Customers SET city = 'New City' WHERE customer_id = 3;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record order insertions
-CREATE TABLE OrderLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    order_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
+-- 12. TCL: Rollback email update
+START TRANSACTION;
+UPDATE Customers SET email = 'test@email.com' WHERE customer_id = 4;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Customers TO 'user2'@'localhost';
+
+-- 14. DCL: Grant insert permission
+GRANT INSERT ON Customers TO 'crm_manager';
+
+-- 15. Trigger: Log customer updates
 DELIMITER //
-CREATE TRIGGER LogOrderInsert
-AFTER INSERT ON Orders
+CREATE TRIGGER LogCustomerUpdate
+AFTER UPDATE ON Customers
 FOR EACH ROW
 BEGIN
-    INSERT INTO OrderLog (order_id, action, log_date, user_id)
-    VALUES (NEW.order_id, 'INSERT', NOW(), USER());
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (NEW.customer_id, 'Customer Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Customer ID: ', NEW.customer_id, ' Email changed to ', NEW.email),
+            'Customers', 'Profile update');
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate email
+DELIMITER //
+CREATE TRIGGER ValidateCustomerEmail
+BEFORE INSERT ON Customers
+FOR EACH ROW
+BEGIN
+    IF NEW.email NOT LIKE '%@%.%' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid email format';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log customer deletion
+DELIMITER //
+CREATE TRIGGER LogCustomerDeletion
+AFTER DELETE ON Customers
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (OLD.customer_id, 'Customer Deletion', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Customer ID: ', OLD.customer_id, ' deleted'),
+            'Customers', 'Account removal');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank customers by registration date
+SELECT customer_id, first_name, last_name, registration_date,
+       RANK() OVER (ORDER BY registration_date DESC) AS reg_rank
+FROM Customers;
+
+-- 19. Window Function: Running total of customers by state
+SELECT customer_id, first_name, state,
+       COUNT(*) OVER (PARTITION BY state ORDER BY customer_id) AS state_customer_count
+FROM Customers;
+
+-- 20. Window Function: Percentage of customers by city
+SELECT customer_id, first_name, city,
+       COUNT(*) OVER (PARTITION BY city) / COUNT(*) OVER () * 100 AS city_percentage
+FROM Customers;
+
+-- Table 3: Orders
+-- 1. View: Delivered orders
+CREATE VIEW DeliveredOrders AS
+SELECT order_id, customer_id, total_price, order_date
+FROM Orders
+WHERE status = 'Delivered';
+
+-- 2. View: Orders with products
+CREATE VIEW OrdersWithProducts AS
+SELECT o.order_id, o.customer_id, p.product_name, o.quantity
+FROM Orders o
+JOIN Products p ON o.product_id = p.product_id;
+
+-- 3. View: High-value orders
+CREATE VIEW HighValueOrders AS
+SELECT order_id, customer_id, total_price
+FROM Orders
+WHERE total_price > 500;
+
+-- 4. CTE: Total revenue by customer
+WITH CustomerRevenue AS (
+    SELECT customer_id, SUM(total_price) AS total_revenue
+    FROM Orders
+    GROUP BY customer_id
+)
+SELECT c.first_name, c.last_name, r.total_revenue
+FROM CustomerRevenue r
+JOIN Customers c ON r.customer_id = c.customer_id;
+
+-- 5. CTE: Recent orders
+WITH RecentOrders AS (
+    SELECT order_id, customer_id, order_date
+    FROM Orders
+    WHERE order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT o.order_id, c.first_name, o.order_date
+FROM RecentOrders o
+JOIN Customers c ON o.customer_id = c.customer_id;
+
+-- 6. CTE: Ranked orders by price
+WITH RankedOrders AS (
+    SELECT order_id, customer_id, total_price,
+           DENSE_RANK() OVER (ORDER BY total_price DESC) AS price_rank
+    FROM Orders
+)
+SELECT order_id, customer_id, total_price, price_rank
+FROM RankedOrders
+WHERE price_rank <= 5;
+
+-- 7. Stored Procedure: Cancel order
+DELIMITER //
+CREATE PROCEDURE CancelOrder(IN ord_id INT)
+BEGIN
+    UPDATE Orders SET status = 'Cancelled' WHERE order_id = ord_id;
 END //
 DELIMITER ;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log order status updates
+-- 8. Stored Procedure: Get customer orders
 DELIMITER //
-CREATE TRIGGER LogOrderStatusUpdate
+CREATE PROCEDURE GetCustomerOrders(IN cust_id INT)
+BEGIN
+    SELECT order_id, product_id, total_price, order_date
+    FROM Orders
+    WHERE customer_id = cust_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Update order status
+DELIMITER //
+CREATE PROCEDURE UpdateOrderStatus(IN ord_id INT, IN new_status VARCHAR(50))
+BEGIN
+    UPDATE Orders SET status = new_status WHERE order_id = ord_id;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update order with rollback
+START TRANSACTION;
+UPDATE Orders SET quantity = quantity + 1 WHERE order_id = 1;
+UPDATE Orders SET total_price = total_price * 1.1 WHERE order_id = 1;
+-- Simulate error
+INSERT INTO Orders (order_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit status update
+START TRANSACTION;
+UPDATE Orders SET status = 'Shipped' WHERE order_id = 2;
+SAVEPOINT status_updated;
+UPDATE Orders SET tracking_number = 'TRK999999' WHERE order_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback order update
+START TRANSACTION;
+UPDATE Orders SET quantity = 5 WHERE order_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Orders TO 'user3'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Orders TO 'order_manager';
+
+-- 15. Trigger: Log order status changes
+DELIMITER //
+CREATE TRIGGER LogOrderStatusChange
 AFTER UPDATE ON Orders
 FOR EACH ROW
 BEGIN
     IF OLD.status != NEW.status THEN
-        INSERT INTO OrderLog (order_id, action, log_date, user_id)
-        VALUES (NEW.order_id, CONCAT('STATUS_UPDATE: ', OLD.status, ' to ', NEW.status), NOW(), USER());
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Order Status Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Order ID: ', NEW.order_id, ' Status changed to ', NEW.status),
+                'Orders', 'Status update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative total amounts
+-- 16. Trigger: Validate quantity
 DELIMITER //
-CREATE TRIGGER PreventNegativeTotal
-BEFORE UPDATE ON Orders
+CREATE TRIGGER ValidateOrderQuantity
+BEFORE INSERT ON Orders
 FOR EACH ROW
 BEGIN
-    IF NEW.total_amount < 0 THEN
+    IF NEW.quantity <= 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Total amount cannot be negative';
+        SET MESSAGE_TEXT = 'Quantity must be positive';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log order deletions
+-- 17. Trigger: Update stock on order
 DELIMITER //
-CREATE TRIGGER LogOrderDelete
-AFTER DELETE ON Orders
+CREATE TRIGGER UpdateStockOnOrder
+AFTER INSERT ON Orders
 FOR EACH ROW
 BEGIN
-    INSERT INTO OrderLog (order_id, action, log_date, user_id)
-    VALUES (OLD.order_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 5: Order_Items**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of order items with product details
-CREATE VIEW OrderItemDetails AS
-SELECT oi.order_id, oi.product_id, p.product_name, oi.quantity
-FROM Order_Items oi
-JOIN Products p ON oi.product_id = p.product_id;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of order items with high quantities
-CREATE VIEW HighQuantityOrderItems AS
-SELECT order_id, product_id, quantity
-FROM Order_Items
-WHERE quantity > 5;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of order items for specific orders
-CREATE VIEW RecentOrderItems AS
-SELECT oi.order_id, oi.product_id, oi.quantity
-FROM Order_Items oi
-JOIN Orders o ON oi.order_id = o.order_id
-WHERE o.order_date >= '2025-01-01';
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of order items with total cost
-CREATE VIEW OrderItemCosts AS
-SELECT oi.order_id, oi.product_id, oi.quantity, (oi.quantity * p.price) AS total_cost
-FROM Order_Items oi
-JOIN Products p ON oi.product_id = p.product_id;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to list order items with product prices
-WITH ProductPrices AS (
-    SELECT product_id, price
-    FROM Products
-)
-SELECT oi.order_id, oi.product_id, oi.quantity, pp.price
-FROM Order_Items oi
-JOIN ProductPrices pp ON oi.product_id = pp.product_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to count order items by order
-WITH ItemCounts AS (
-    SELECT order_id, COUNT(*) AS item_count
-    FROM Order_Items
-    GROUP BY order_id
-)
-SELECT o.order_id, o.order_date, ic.item_count
-FROM Orders o
-JOIN ItemCounts ic ON o.order_id = ic.order_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find order items for high-value orders
-WITH HighValueOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE total_amount > 500
-)
-SELECT oi.order_id, oi.product_id, oi.quantity
-FROM Order_Items oi
-JOIN HighValueOrders hvo ON oi.order_id = hvo.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list order items with product categories
-WITH ProductCategories AS (
-    SELECT product_id, category_id
-    FROM Products
-)
-SELECT oi.order_id, oi.product_id, pc.category_id
-FROM Order_Items oi
-JOIN ProductCategories pc ON oi.product_id = pc.product_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new order item
-DELIMITER //
-CREATE PROCEDURE AddOrderItem(
-    IN p_order_id INT,
-    IN p_product_id INT,
-    IN p_quantity INT
-)
-BEGIN
-    INSERT INTO Order_Items (order_id, product_id, quantity)
-    VALUES (p_order_id, p_product_id, p_quantity);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update an order item's quantity
-DELIMITER //
-CREATE PROCEDURE UpdateOrderItemQuantity(
-    IN p_order_id INT,
-    IN p_product_id INT,
-    IN p_new_quantity INT
-)
-BEGIN
-    UPDATE Order_Items
-    SET quantity = p_new_quantity
-    WHERE order_id = p_order_id AND product_id = p_product_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete an order item
-DELIMITER //
-CREATE PROCEDURE DeleteOrderItem(
-    IN p_order_id INT,
-    IN p_product_id INT
-)
-BEGIN
-    DELETE FROM Order_Items
-    WHERE order_id = p_order_id AND product_id = p_product_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve order item details
-DELIMITER //
-CREATE PROCEDURE GetOrderItemDetails(
-    IN p_order_id INT,
-    IN p_product_id INT
-)
-BEGIN
-    SELECT oi.order_id, oi.product_id, p.product_name, oi.quantity
-    FROM Order_Items oi
-    JOIN Products p ON oi.product_id = p.product_id
-    WHERE oi.order_id = p_order_id AND oi.product_id = p_product_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new order item
-INSERT INTO Order_Items (order_id, product_id, quantity)
-VALUES (301, 1, 2);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates an order item's quantity
-UPDATE Order_Items
-SET quantity = 3
-WHERE order_id = 1 AND product_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an order item
-DELETE FROM Order_Items
-WHERE order_id = 1 AND product_id = 1;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates order item quantity within a transaction
-START TRANSACTION;
-UPDATE Order_Items
-SET quantity = quantity + 1
-WHERE order_id = 1 AND product_id = 1;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record order item insertions
-CREATE TABLE OrderItemLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    order_id INT,
-    product_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogOrderItemInsert
-AFTER INSERT ON Order_Items
-FOR EACH ROW
-BEGIN
-    INSERT INTO OrderItemLog (order_id, product_id, action, log_date, user_id)
-    VALUES (NEW.order_id, NEW.product_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log order item quantity updates
-DELIMITER //
-CREATE TRIGGER LogOrderItemQuantityUpdate
-AFTER UPDATE ON Order_Items
-FOR EACH ROW
-BEGIN
-    IF OLD.quantity != NEW.quantity THEN
-        INSERT INTO OrderItemLog (order_id, product_id, action, log_date, user_id)
-        VALUES (NEW.order_id, NEW.product_id, CONCAT('QUANTITY_UPDATE: ', OLD.quantity, ' to ', NEW.quantity), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative quantities
-DELIMITER //
-CREATE TRIGGER PreventNegativeQuantity
-BEFORE UPDATE ON Order_Items
-FOR EACH ROW
-BEGIN
-    IF NEW.quantity < 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Quantity cannot be negative';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to update product stock on order item insertion
-DELIMITER //
-CREATE TRIGGER UpdateStockOnOrderItemInsert
-AFTER INSERT ON Order_Items
-FOR EACH ROW
-BEGIN
-    UPDATE Products
-    SET stock_quantity = stock_quantity - NEW.quantity
+    UPDATE Products SET stock_quantity = stock_quantity - NEW.quantity
     WHERE product_id = NEW.product_id;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- **Table 6: Suppliers**
+-- 18. Window Function: Rank orders by total price
+SELECT order_id, customer_id, total_price,
+       RANK() OVER (PARTITION BY customer_id ORDER BY total_price DESC) AS price_rank
+FROM Orders;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active suppliers
+-- 19. Window Function: Running total by customer
+SELECT order_id, customer_id, total_price,
+       SUM(total_price) OVER (PARTITION BY customer_id ORDER BY order_date) AS running_total
+FROM Orders;
+
+-- 20. Window Function: Order percentage by customer
+SELECT order_id, customer_id, total_price,
+       total_price / SUM(total_price) OVER (PARTITION BY customer_id) * 100 AS order_percentage
+FROM Orders;
+
+-- Table 4: Suppliers
+-- 1. View: Active suppliers
 CREATE VIEW ActiveSuppliers AS
 SELECT supplier_id, supplier_name, contact_email
 FROM Suppliers
-WHERE is_active = TRUE;
+WHERE contract_date >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR);
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of suppliers with product counts
-CREATE VIEW SupplierProductCounts AS
+-- 2. View: Suppliers with products
+CREATE VIEW SuppliersWithProducts AS
 SELECT s.supplier_id, s.supplier_name, COUNT(p.product_id) AS product_count
 FROM Suppliers s
 LEFT JOIN Products p ON s.supplier_id = p.supplier_id
-GROUP BY s.supplier_id, s.supplier_name;
+GROUP BY s.supplier_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of suppliers with contact details
+-- 3. View: Supplier contact details
 CREATE VIEW SupplierContacts AS
-SELECT supplier_id, supplier_name, contact_phone, contact_email
+SELECT supplier_id, supplier_name, contact_name, contact_phone
 FROM Suppliers;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of suppliers with high-rated products
-CREATE VIEW HighRatedSuppliers AS
-SELECT s.supplier_id, s.supplier_name
-FROM Suppliers s
-JOIN Products p ON s.supplier_id = p.supplier_id
-WHERE p.rating >= 4.5;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count products by supplier
-WITH SupplierCounts AS (
+-- 4. CTE: Suppliers by product count
+WITH SupplierProductCount AS (
     SELECT supplier_id, COUNT(*) AS product_count
     FROM Products
     GROUP BY supplier_id
 )
-SELECT s.supplier_id, s.supplier_name, COALESCE(sc.product_count, 0) AS product_count
-FROM Suppliers s
-LEFT JOIN SupplierCounts sc ON s.supplier_id = sc.supplier_id;
+SELECT s.supplier_name, sp.product_count
+FROM SupplierProductCount sp
+JOIN Suppliers s ON sp.supplier_id = s.supplier_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list suppliers with active products
-WITH ActiveProducts AS (
-    SELECT supplier_id
-    FROM Products
-    WHERE is_active = TRUE
-)
-SELECT s.supplier_id, s.supplier_name
-FROM Suppliers s
-JOIN ActiveProducts ap ON s.supplier_id = ap.supplier_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find suppliers with low stock products
-WITH LowStockProducts AS (
-    SELECT supplier_id
-    FROM Products
-    WHERE stock_quantity < 50
-)
-SELECT s.supplier_id, s.supplier_name
-FROM Suppliers s
-JOIN LowStockProducts lsp ON s.supplier_id = lsp.supplier_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list suppliers with high-priced products
-WITH HighPricedProducts AS (
-    SELECT supplier_id
-    FROM Products
-    WHERE price > 100
-)
-SELECT s.supplier_id, s.supplier_name
-FROM Suppliers s
-JOIN HighPricedProducts hpp ON s.supplier_id = hpp.supplier_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new supplier
-DELIMITER //
-CREATE PROCEDURE AddSupplier(
-    IN p_supplier_id INT,
-    IN p_supplier_name VARCHAR(100),
-    IN p_contact_email VARCHAR(100),
-    IN p_contact_phone VARCHAR(15),
-    IN p_is_active BOOLEAN
-)
-BEGIN
-    INSERT INTO Suppliers (supplier_id, supplier_name, contact_email, contact_phone, is_active)
-    VALUES (p_supplier_id, p_supplier_name, p_contact_email, p_contact_phone, p_is_active);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a supplier's contact email
-DELIMITER //
-CREATE PROCEDURE UpdateSupplierEmail(
-    IN p_supplier_id INT,
-    IN p_new_email VARCHAR(100)
-)
-BEGIN
-    UPDATE Suppliers
-    SET contact_email = p_new_email
-    WHERE supplier_id = p_supplier_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a supplier
-DELIMITER //
-CREATE PROCEDURE DeleteSupplier(
-    IN p_supplier_id INT
-)
-BEGIN
-    DELETE FROM Suppliers
-    WHERE supplier_id = p_supplier_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve supplier details
-DELIMITER //
-CREATE PROCEDURE GetSupplierDetails(
-    IN p_supplier_id INT
-)
-BEGIN
-    SELECT supplier_id, supplier_name, contact_email, contact_phone
+-- 5. CTE: Recent suppliers
+WITH RecentSuppliers AS (
+    SELECT supplier_id, supplier_name, contract_date
     FROM Suppliers
-    WHERE supplier_id = p_supplier_id;
+    WHERE contract_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+)
+SELECT supplier_name, contract_date
+FROM RecentSuppliers
+ORDER BY contract_date DESC;
+
+-- 6. CTE: Ranked suppliers by products
+WITH RankedSuppliers AS (
+    SELECT supplier_id, supplier_name,
+           COUNT(*) OVER (PARTITION BY supplier_id) AS product_count,
+           RANK() OVER (ORDER BY COUNT(*) DESC) AS supplier_rank
+    FROM Products
+    GROUP BY supplier_id, supplier_name
+)
+SELECT supplier_name, product_count, supplier_rank
+FROM RankedSuppliers
+WHERE supplier_rank <= 5;
+
+-- 7. Stored Procedure: Update supplier contact
+DELIMITER //
+CREATE PROCEDURE UpdateSupplierContact(IN supp_id INT, IN new_email VARCHAR(100))
+BEGIN
+    UPDATE Suppliers SET contact_email = new_email WHERE supplier_id = supp_id;
 END //
 DELIMITER ;
 
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new supplier
-INSERT INTO Suppliers (supplier_id, supplier_name, contact_email, contact_phone, is_active)
-VALUES (401, 'Tech Supplies', 'tech@supplies.com', '123-456-7890', TRUE);
+-- 8. Stored Procedure: Get supplier products
+DELIMITER //
+CREATE PROCEDURE GetSupplierProducts(IN supp_id INT)
+BEGIN
+    SELECT p.product_id, p.product_name
+    FROM Products p
+    WHERE p.supplier_id = supp_id;
+END //
+DELIMITER ;
 
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a supplier's contact phone
-UPDATE Suppliers
-SET contact_phone = '987-654-3210'
-WHERE supplier_id = 1;
+-- 9. Stored Procedure: Add new supplier
+DELIMITER //
+CREATE PROCEDURE AddSupplier(IN name VARCHAR(100), IN email VARCHAR(100))
+BEGIN
+    INSERT INTO Suppliers (supplier_id, supplier_name, contact_email)
+    VALUES ((SELECT MAX(supplier_id) + 1 FROM Suppliers), name, email);
+END //
+DELIMITER ;
 
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive supplier
-DELETE FROM Suppliers
-WHERE supplier_id = 1 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates supplier active status within a transaction
+-- 10. TCL: Update supplier with rollback
 START TRANSACTION;
-UPDATE Suppliers
-SET is_active = FALSE
-WHERE supplier_id = 1;
+UPDATE Suppliers SET contact_phone = '555-8888' WHERE supplier_id = 101;
+UPDATE Suppliers SET address = '456 New St' WHERE supplier_id = 101;
+-- Simulate error
+INSERT INTO Suppliers (supplier_id) VALUES (101);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit supplier update
+START TRANSACTION;
+UPDATE Suppliers SET contact_name = 'New Contact' WHERE supplier_id = 102;
+SAVEPOINT contact_updated;
+UPDATE Suppliers SET city = 'New City' WHERE supplier_id = 102;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record supplier insertions
-CREATE TABLE SupplierLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    supplier_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogSupplierInsert
-AFTER INSERT ON Suppliers
-FOR EACH ROW
-BEGIN
-    INSERT INTO SupplierLog (supplier_id, action, log_date, user_id)
-    VALUES (NEW.supplier_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback supplier update
+START TRANSACTION;
+UPDATE Suppliers SET contact_email = 'new@email.com' WHERE supplier_id = 103;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log supplier email updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Suppliers TO 'user4'@'localhost';
+
+-- 14. DCL: Grant insert permission
+GRANT INSERT ON Suppliers TO 'procurement_manager';
+
+-- 15. Trigger: Log supplier updates
 DELIMITER //
-CREATE TRIGGER LogSupplierEmailUpdate
+CREATE TRIGGER LogSupplierUpdate
 AFTER UPDATE ON Suppliers
 FOR EACH ROW
 BEGIN
-    IF OLD.contact_email != NEW.contact_email THEN
-        INSERT INTO SupplierLog (supplier_id, action, log_date, user_id)
-        VALUES (NEW.supplier_id, CONCAT('EMAIL_UPDATE: ', OLD.contact_email, ' to ', NEW.contact_email), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Supplier Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Supplier ID: ', NEW.supplier_id, ' Email changed to ', NEW.contact_email),
+            'Suppliers', 'Contact update');
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent deleting active suppliers
+-- 16. Trigger: Validate supplier email
 DELIMITER //
-CREATE TRIGGER PreventActiveSupplierDelete
-BEFORE DELETE ON Suppliers
+CREATE TRIGGER ValidateSupplierEmail
+BEFORE INSERT ON Suppliers
 FOR EACH ROW
 BEGIN
-    IF OLD.is_active = TRUE THEN
+    IF NEW.contact_email NOT LIKE '%@%.%' THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot delete active supplier';
+        SET MESSAGE_TEXT = 'Invalid email format';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log supplier deletions
+-- 17. Trigger: Log supplier deletion
 DELIMITER //
-CREATE TRIGGER LogSupplierDelete
+CREATE TRIGGER LogSupplierDeletion
 AFTER DELETE ON Suppliers
 FOR EACH ROW
 BEGIN
-    INSERT INTO SupplierLog (supplier_id, action, log_date, user_id)
-    VALUES (OLD.supplier_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Supplier Deletion', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Supplier ID: ', OLD.supplier_id, ' deleted'),
+            'Suppliers', 'Supplier removal');
+END;
+// DELIMITER ;
 
--- **Table 7: Addresses**
+-- 18. Window Function: Rank suppliers by contract date
+SELECT supplier_id, supplier_name, contract_date,
+       RANK() OVER (ORDER BY contract_date DESC) AS contract_rank
+FROM Suppliers;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of default addresses
-CREATE VIEW DefaultAddresses AS
-SELECT address_id, customer_id, street, city
-FROM Addresses
-WHERE is_default = TRUE;
+-- 19. Window Function: Running total of suppliers by state
+SELECT supplier_id, supplier_name, state,
+       COUNT(*) OVER (PARTITION BY state ORDER BY supplier_id) AS state_supplier_count
+FROM Suppliers;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of addresses with customer details
-CREATE VIEW AddressCustomerDetails AS
-SELECT a.address_id, a.street, c.first_name, c.last_name
-FROM Addresses a
-JOIN Customers c ON a.customer_id = c.customer_id;
+-- 20. Window Function: Supplier percentage by city
+SELECT supplier_id, supplier_name, city,
+       COUNT(*) OVER (PARTITION BY city) / COUNT(*) OVER () * 100 AS city_percentage
+FROM Suppliers;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of addresses by state
-CREATE VIEW AddressesByState AS
-SELECT address_id, customer_id, state
-FROM Addresses
-GROUP BY state;
+-- Table 5: Categories
+-- 1. View: Active categories
+CREATE VIEW ActiveCategories AS
+SELECT category_id, category_name, description
+FROM Categories
+WHERE is_active = TRUE;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of addresses for recent customers
-CREATE VIEW RecentCustomerAddresses AS
-SELECT a.address_id, a.street, a.city
-FROM Addresses a
-JOIN Customers c ON a.customer_id = c.customer_id
-WHERE c.registration_date >= '2024-01-01';
+-- 2. View: Categories with products
+CREATE VIEW CategoriesWithProducts AS
+SELECT c.category_id, c.category_name, COUNT(p.product_id) AS product_count
+FROM Categories c
+LEFT JOIN Products p ON c.category_id = p.category_id
+GROUP BY c.category_id;
 
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count addresses by customer
-WITH AddressCounts AS (
-    SELECT customer_id, COUNT(*) AS address_count
-    FROM Addresses
-    GROUP BY customer_id
+-- 3. View: Parent categories
+CREATE VIEW ParentCategories AS
+SELECT category_id, category_name
+FROM Categories
+WHERE parent_category_id IS NULL;
+
+-- 4. CTE: Category product count
+WITH CategoryProductCount AS (
+    SELECT category_id, COUNT(*) AS product_count
+    FROM Products
+    GROUP BY category_id
 )
-SELECT c.customer_id, c.first_name, ac.address_count
-FROM Customers c
-JOIN AddressCounts ac ON c.customer_id = ac.customer_id;
+SELECT c.category_name, cp.product_count
+FROM CategoryProductCount cp
+JOIN Categories c ON cp.category_id = c.category_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list default addresses
-WITH DefaultAddresses AS (
-    SELECT address_id, customer_id
-    FROM Addresses
-    WHERE is_default = TRUE
+-- 5. CTE: Recent categories
+WITH RecentCategories AS (
+    SELECT category_id, category_name, created_date
+    FROM Categories
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
 )
-SELECT da.address_id, c.first_name, c.last_name
-FROM DefaultAddresses da
-JOIN Customers c ON da.customer_id = c.customer_id;
+SELECT category_name, created_date
+FROM RecentCategories
+ORDER BY created_date DESC;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find addresses in specific states
-WITH StateAddresses AS (
-    SELECT address_id, customer_id
-    FROM Addresses
-    WHERE state = 'CA'
+-- 6. CTE: Ranked categories by products
+WITH RankedCategories AS (
+    SELECT c.category_id, c.category_name,
+           COUNT(p.product_id) AS product_count,
+           RANK() OVER (ORDER BY COUNT(p.product_id) DESC) AS cat_rank
+    FROM Categories c
+    LEFT JOIN Products p ON c.category_id = p.category_id
+    GROUP BY c.category_id
 )
-SELECT sa.address_id, c.first_name
-FROM StateAddresses sa
-JOIN Customers c ON sa.customer_id = c.customer_id;
+SELECT category_name, product_count, cat_rank
+FROM RankedCategories
+WHERE cat_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list addresses with recent orders
-WITH RecentOrders AS (
-    SELECT customer_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
-)
-SELECT a.address_id, a.street
-FROM Addresses a
-JOIN RecentOrders ro ON a.customer_id = ro.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new address
+-- 7. Stored Procedure: Update category description
 DELIMITER //
-CREATE PROCEDURE AddAddress(
-    IN p_address_id INT,
-    IN p_customer_id INT,
-    IN p_street VARCHAR(100),
-    IN p_city VARCHAR(50),
-    IN p_state VARCHAR(50),
-    IN p_zip_code VARCHAR(10),
-    IN p_is_default BOOLEAN
-)
+CREATE PROCEDURE UpdateCategoryDescription(IN cat_id INT, IN new_desc TEXT)
 BEGIN
-    INSERT INTO Addresses (address_id, customer_id, street, city, state, zip_code, is_default)
-    VALUES (p_address_id, p_customer_id, p_street, p_city, p_state, p_zip_code, p_is_default);
+    UPDATE Categories SET description = new_desc WHERE category_id = cat_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update an address's city
+-- 8. Stored Procedure: Deactivate category
 DELIMITER //
-CREATE PROCEDURE UpdateAddressCity(
-    IN p_address_id INT,
-    IN p_new_city VARCHAR(50)
-)
+CREATE PROCEDURE DeactivateCategory(IN cat_id INT)
 BEGIN
-    UPDATE Addresses
-    SET city = p_new_city
-    WHERE address_id = p_address_id;
+    UPDATE Categories SET is_active = FALSE WHERE category_id = cat_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete an address
+-- 9. Stored Procedure: Get subcategories
 DELIMITER //
-CREATE PROCEDURE DeleteAddress(
-    IN p_address_id INT
-)
+CREATE PROCEDURE GetSubcategories(IN parent_id INT)
 BEGIN
-    DELETE FROM Addresses
-    WHERE address_id = p_address_id;
+    SELECT category_id, category_name
+    FROM Categories
+    WHERE parent_category_id = parent_id;
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve address details
-DELIMITER //
-CREATE PROCEDURE GetAddressDetails(
-    IN p_address_id INT
-)
-BEGIN
-    SELECT a.address_id, a.street, a.city, c.first_name
-    FROM Addresses a
-    JOIN Customers c ON a.customer_id = c.customer_id
-    WHERE a.address_id = p_address_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new address
-INSERT INTO Addresses (address_id, customer_id, street, city, state, zip_code, is_default)
-VALUES (501, 1, '123 Main St', 'Los Angeles', 'CA', '90001', TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates an address's zip code
-UPDATE Addresses
-SET zip_code = '90002'
-WHERE address_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a non-default address
-DELETE FROM Addresses
-WHERE address_id = 1 AND is_default = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates address state within a transaction
+-- 10. TCL: Update category with rollback
 START TRANSACTION;
-UPDATE Addresses
-SET state = 'NY'
-WHERE address_id = 1;
+UPDATE Categories SET category_name = 'New Electronics' WHERE category_id = 1;
+UPDATE Categories SET display_order = 10 WHERE category_id = 1;
+-- Simulate error
+INSERT INTO Categories (category_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit category update
+START TRANSACTION;
+UPDATE Categories SET is_active = TRUE WHERE category_id = 2;
+SAVEPOINT status_updated;
+UPDATE Categories SET meta_title = 'Updated Title' WHERE category_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record address insertions
-CREATE TABLE AddressLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    address_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogAddressInsert
-AFTER INSERT ON Addresses
-FOR EACH ROW
-BEGIN
-    INSERT INTO AddressLog (address_id, action, log_date, user_id)
-    VALUES (NEW.address_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log address city updates
-DELIMITER //
-CREATE TRIGGER LogAddressCityUpdate
-AFTER UPDATE ON Addresses
-FOR EACH ROW
-BEGIN
-    IF OLD.city != NEW.city THEN
-        INSERT INTO AddressLog (address_id, action, log_date, user_id)
-        VALUES (NEW.address_id, CONCAT('CITY_UPDATE: ', OLD.city, ' to ', NEW.city), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent multiple default addresses
-DELIMITER //
-CREATE TRIGGER PreventMultipleDefaults
-BEFORE INSERT ON Addresses
-FOR EACH ROW
-BEGIN
-    IF NEW.is_default = TRUE THEN
-        UPDATE Addresses
-        SET is_default = FALSE
-        WHERE customer_id = NEW.customer_id AND address_id != NEW.address_id;
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log address deletions
-DELIMITER //
-CREATE TRIGGER LogAddressDelete
-AFTER DELETE ON Addresses
-FOR EACH ROW
-BEGIN
-    INSERT INTO AddressLog (address_id, action, log_date, user_id)
-    VALUES (OLD.address_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 8: Payments**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of completed payments
-CREATE VIEW CompletedPayments AS
-SELECT payment_id, order_id, payment_date, amount
-FROM Payments
-WHERE payment_status = 'Completed';
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of payments with order details
-CREATE VIEW PaymentOrderDetails AS
-SELECT p.payment_id, p.order_id, o.order_date, p.amount
-FROM Payments p
-JOIN Orders o ON p.order_id = o.order_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of payments by payment method
-CREATE VIEW PaymentsByMethod AS
-SELECT p.payment_id, p.order_id, pm.payment_type
-FROM Payments p
-JOIN Payment_Methods pm ON p.payment_method_id = pm.payment_method_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of pending payments
-CREATE VIEW PendingPayments AS
-SELECT payment_id, order_id, amount
-FROM Payments
-WHERE payment_status = 'Pending';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count payments by order
-WITH PaymentCounts AS (
-    SELECT order_id, COUNT(*) AS payment_count
-    FROM Payments
-    GROUP BY order_id
-)
-SELECT o.order_id, o.order_date, pc.payment_count
-FROM Orders o
-JOIN PaymentCounts pc ON o.order_id = pc.order_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list payments with customer details
-WITH CustomerOrders AS (
-    SELECT order_id, customer_id
-    FROM Orders
-)
-SELECT p.payment_id, p.order_id, c.first_name
-FROM Payments p
-JOIN CustomerOrders co ON p.order_id = co.order_id
-JOIN Customers c ON co.customer_id = c.customer_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find payments for recent orders
-WITH RecentOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
-)
-SELECT p.payment_id, p.order_id, p.amount
-FROM Payments p
-JOIN RecentOrders ro ON p.order_id = ro.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list payments by status
-WITH PaymentStatus AS (
-    SELECT payment_status, COUNT(*) AS payment_count
-    FROM Payments
-    GROUP BY payment_status
-)
-SELECT payment_status, payment_count
-FROM PaymentStatus;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new payment
-DELIMITER //
-CREATE PROCEDURE AddPayment(
-    IN p_payment_id INT,
-    IN p_order_id INT,
-    IN p_payment_method_id INT,
-    IN p_amount DECIMAL(10,2),
-    IN p_payment_date DATE,
-    IN p_payment_status VARCHAR(50)
-)
-BEGIN
-    INSERT INTO Payments (payment_id, order_id, payment_method_id, amount, payment_date, payment_status)
-    VALUES (p_payment_id, p_order_id, p_payment_method_id, p_amount, p_payment_date, p_payment_status);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a payment's status
-DELIMITER //
-CREATE PROCEDURE UpdatePaymentStatus(
-    IN p_payment_id INT,
-    IN p_new_status VARCHAR(50)
-)
-BEGIN
-    UPDATE Payments
-    SET payment_status = p_new_status
-    WHERE payment_id = p_payment_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a payment
-DELIMITER //
-CREATE PROCEDURE DeletePayment(
-    IN p_payment_id INT
-)
-BEGIN
-    DELETE FROM Payments
-    WHERE payment_id = p_payment_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve payment details
-DELIMITER //
-CREATE PROCEDURE GetPaymentDetails(
-    IN p_payment_id INT
-)
-BEGIN
-    SELECT p.payment_id, p.order_id, pm.payment_type, p.amount
-    FROM Payments p
-    JOIN Payment_Methods pm ON p.payment_method_id = pm.payment_method_id
-    WHERE p.payment_id = p_payment_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new payment
-INSERT INTO Payments (payment_id, order_id, payment_method_id, amount, payment_date, payment_status)
-VALUES (601, 301, 1, 299.99, '2025-06-07', 'Pending');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a payment's amount
-UPDATE Payments
-SET amount = 350.00
-WHERE payment_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a failed payment
-DELETE FROM Payments
-WHERE payment_id = 1 AND payment_status = 'Failed';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates payment status within a transaction
+-- 12. TCL: Rollback category update
 START TRANSACTION;
-UPDATE Payments
-SET payment_status = 'Completed'
-WHERE payment_id = 1;
-COMMIT;
+UPDATE Categories SET description = 'Updated description' WHERE category_id = 3;
+ROLLBACK;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record payment insertions
-CREATE TABLE PaymentLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    payment_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Categories TO 'user5'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Categories TO 'catalog_manager';
+
+-- 15. Trigger: Log category updates
 DELIMITER //
-CREATE TRIGGER LogPaymentInsert
-AFTER INSERT ON Payments
+CREATE TRIGGER LogCategoryUpdate
+AFTER UPDATE ON Categories
 FOR EACH ROW
 BEGIN
-    INSERT INTO PaymentLog (payment_id, action, log_date, user_id)
-    VALUES (NEW.payment_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Category Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Category ID: ', NEW.category_id, ' Name changed to ', NEW.category_name),
+            'Categories', 'Category update');
+END;
+// DELIMITER ;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log payment amount updates
+-- 16. Trigger: Validate display order
 DELIMITER //
-CREATE TRIGGER LogPaymentAmountUpdate
-AFTER UPDATE ON Payments
+CREATE TRIGGER ValidateDisplayOrder
+BEFORE INSERT ON Categories
 FOR EACH ROW
 BEGIN
-    IF OLD.amount != NEW.amount THEN
-        INSERT INTO PaymentLog (payment_id, action, log_date, user_id)
-        VALUES (NEW.payment_id, CONCAT('AMOUNT_UPDATE: ', OLD.amount, ' to ', NEW.amount), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative payment amounts
-DELIMITER //
-CREATE TRIGGER PreventNegativePayment
-BEFORE UPDATE ON Payments
-FOR EACH ROW
-BEGIN
-    IF NEW.amount < 0 THEN
+    IF NEW.display_order < 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Payment amount cannot be negative';
+        SET MESSAGE_TEXT = 'Display order cannot be negative';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log payment deletions
+-- 17. Trigger: Log category deletion
 DELIMITER //
-CREATE TRIGGER LogPaymentDelete
-AFTER DELETE ON Payments
+CREATE TRIGGER LogCategoryDeletion
+AFTER DELETE ON Categories
 FOR EACH ROW
 BEGIN
-    INSERT INTO PaymentLog (payment_id, action, log_date, user_id)
-    VALUES (OLD.payment_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Category Deletion', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Category ID: ', OLD.category_id, ' deleted'),
+            'Categories', 'Category removal');
+END;
+// DELIMITER ;
 
--- **Table 9: Payment_Methods** (continued)
+-- 18. Window Function: Rank categories by creation date
+SELECT category_id, category_name, created_date,
+       RANK() OVER (ORDER BY created_date DESC) AS create_rank
+FROM Categories;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of payment methods with customer details
-CREATE VIEW PaymentMethodCustomerDetails AS
-SELECT pm.payment_method_id, pm.payment_type, c.first_name, c.last_name
-FROM Payment_Methods pm
-JOIN Customers c ON pm.customer_id = c.customer_id;
+-- 19. Window Function: Running total of categories by parent
+SELECT category_id, category_name, parent_category_id,
+       COUNT(*) OVER (PARTITION BY parent_category_id ORDER BY category_id) AS subcat_count
+FROM Categories;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of payment methods used in payments
-CREATE VIEW UsedPaymentMethods AS
-SELECT pm.payment_method_id, pm.payment_type
-FROM Payment_Methods pm
-JOIN Payments p ON pm.payment_method_id = p.payment_method_id;
+-- 20. Window Function: Category percentage
+SELECT category_id, category_name,
+       COUNT(*) OVER (PARTITION BY parent_category_id) / COUNT(*) OVER () * 100 AS cat_percentage
+FROM Categories;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of payment methods by type
-CREATE VIEW PaymentMethodsByType AS
-SELECT payment_type, COUNT(*) AS method_count
-FROM Payment_Methods
-GROUP BY payment_type;
+-- Table 6: Reviews
+-- 1. View: Verified reviews
+CREATE VIEW VerifiedReviews AS
+SELECT review_id, product_id, rating, comment
+FROM Reviews
+WHERE is_verified = TRUE;
 
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count payment methods by customer
-WITH PaymentMethodCounts AS (
-    SELECT customer_id, COUNT(*) AS method_count
-    FROM Payment_Methods
-    GROUP BY customer_id
-)
-SELECT c.customer_id, c.first_name, pmc.method_count
-FROM Customers c
-JOIN PaymentMethodCounts pmc ON c.customer_id = pmc.customer_id;
+-- 2. View: Reviews with products
+CREATE VIEW ReviewsWithProducts AS
+SELECT r.review_id, r.rating, p.product_name
+FROM Reviews r
+JOIN Products p ON r.product_id = p.product_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list payment methods for recent customers
-WITH RecentCustomers AS (
-    SELECT customer_id
-    FROM Customers
-    WHERE registration_date >= '2024-01-01'
-)
-SELECT pm.payment_method_id, pm.payment_type
-FROM Payment_Methods pm
-JOIN RecentCustomers rc ON pm.customer_id = rc.customer_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find payment methods used in high-value orders
-WITH HighValueOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE total_amount > 500
-)
-SELECT pm.payment_method_id, pm.payment_type
-FROM Payment_Methods pm
-JOIN Payments p ON pm.payment_method_id = p.payment_method_id
-JOIN HighValueOrders hvo ON p.order_id = hvo.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list active payment methods with customer details
-WITH ActiveMethods AS (
-    SELECT payment_method_id, customer_id
-    FROM Payment_Methods
-    WHERE is_active = TRUE
-)
-SELECT am.payment_method_id, c.first_name
-FROM ActiveMethods am
-JOIN Customers c ON am.customer_id = c.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new payment method
-DELIMITER //
-CREATE PROCEDURE AddPaymentMethod(
-    IN p_payment_method_id INT,
-    IN p_customer_id INT,
-    IN p_payment_type VARCHAR(50),
-    IN p_card_number VARCHAR(20),
-    IN p_expiry_date DATE,
-    IN p_is_active BOOLEAN
-)
-BEGIN
-    INSERT INTO Payment_Methods (payment_method_id, customer_id, payment_type, card_number, expiry_date, is_active)
-    VALUES (p_payment_method_id, p_customer_id, p_payment_type, p_card_number, p_expiry_date, p_is_active);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a payment method's type
-DELIMITER //
-CREATE PROCEDURE UpdatePaymentMethodType(
-    IN p_payment_method_id INT,
-    IN p_new_type VARCHAR(50)
-)
-BEGIN
-    UPDATE Payment_Methods
-    SET payment_type = p_new_type
-    WHERE payment_method_id = p_payment_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a payment method
-DELIMITER //
-CREATE PROCEDURE DeletePaymentMethod(
-    IN p_payment_method_id INT
-)
-BEGIN
-    DELETE FROM Payment_Methods
-    WHERE payment_method_id = p_payment_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve payment method details
-DELIMITER //
-CREATE PROCEDURE GetPaymentMethodDetails(
-    IN p_payment_method_id INT
-)
-BEGIN
-    SELECT pm.payment_method_id, pm.payment_type, c.first_name
-    FROM Payment_Methods pm
-    JOIN Customers c ON pm.customer_id = c.customer_id
-    WHERE pm.payment_method_id = p_payment_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new payment method
-INSERT INTO Payment_Methods (payment_method_id, customer_id, payment_type, card_number, expiry_date, is_active)
-VALUES (701, 1, 'Credit Card', '1234-5678-9012-3456', '2026-12-31', TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a payment method's expiry date
-UPDATE Payment_Methods
-SET expiry_date = '2027-12-31'
-WHERE payment_method_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive payment method
-DELETE FROM Payment_Methods
-WHERE payment_method_id = 1 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates payment method active status within a transaction
-START TRANSACTION;
-UPDATE Payment_Methods
-SET is_active = FALSE
-WHERE payment_method_id = 1;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record payment method insertions
-CREATE TABLE PaymentMethodLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    payment_method_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogPaymentMethodInsert
-AFTER INSERT ON Payment_Methods
-FOR EACH ROW
-BEGIN
-    INSERT INTO PaymentMethodLog (payment_method_id, action, log_date, user_id)
-    VALUES (NEW.payment_method_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log payment method type updates
-DELIMITER //
-CREATE TRIGGER LogPaymentMethodTypeUpdate
-AFTER UPDATE ON Payment_Methods
-FOR EACH ROW
-BEGIN
-    IF OLD.payment_type != NEW.payment_type THEN
-        INSERT INTO PaymentMethodLog (payment_method_id, action, log_date,_parameter_id
-        VALUES (NEW.payment_method_id, CONCAT('TYPE_UPDATE: ', OLD.payment_type, ' to ', NEW.payment_type), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent expired payment methods
-DELIMITER //
-CREATE TRIGGER PreventExpiredPaymentMethod
-BEFORE INSERT ON Payment_Methods
-FOR EACH ROW
-BEGIN
-    IF NEW.expiry_date < CURDATE() THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot add expired payment method';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log payment method deletions
-DELIMITER //
-CREATE TRIGGER LogPaymentMethodDelete
-AFTER DELETE ON Payment_Methods
-FOR EACH ROW
-BEGIN
-    INSERT INTO PaymentMethodLog (payment_method_id, action, log_date, user_id)
-    VALUES (OLD.payment_method_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 10: Reviews**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of reviews with high ratings
+-- 3. View: High-rated reviews
 CREATE VIEW HighRatedReviews AS
-SELECT review_id, product_id, customer_id, rating
+SELECT review_id, product_id, rating
 FROM Reviews
 WHERE rating >= 4;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of reviews with customer and product details
-CREATE VIEW ReviewDetails AS
-SELECT r.review_id, p.product_name, c.first_name
-FROM Reviews r
-JOIN Products p ON r.product_id = p.product_id
-JOIN Customers c ON r.customer_id = c.customer_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of recent reviews
-CREATE VIEW RecentReviews AS
-SELECT review_id, product_id, review_date
-FROM Reviews
-WHERE review_date >= '2024-01-01';
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of reviews by product
-CREATE VIEW ReviewsByProduct AS
-SELECT p.product_id, p.product_name, COUNT(r.review_id) AS review_count
-FROM Products p
-LEFT JOIN Reviews r ON p.product_id = r.product_id
-GROUP BY p.product_id, p.product_name;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to average ratings by product
-WITH AverageRatings AS (
+-- 4. CTE: Average rating by product
+WITH ProductAvgRating AS (
     SELECT product_id, AVG(rating) AS avg_rating
     FROM Reviews
     GROUP BY product_id
 )
-SELECT p.product_id, p.product_name, ar.avg_rating
-FROM Products p
-JOIN AverageRatings ar ON p.product_id = ar.product_id;
+SELECT p.product_name, pa.avg_rating
+FROM ProductAvgRating pa
+JOIN Products p ON pa.product_id = p.product_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list reviews by customer
-WITH CustomerReviews AS (
-    SELECT customer_id, COUNT(*) AS review_count
-    FROM Reviews
-    GROUP BY customer_id
-)
-SELECT c.customer_id, c.first_name, cr.review_count
-FROM Customers c
-JOIN CustomerReviews cr ON c.customer_id = cr.customer_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find reviews for high-priced products
-WITH HighPricedProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE price > 100
-)
-SELECT r.review_id, r.product_id, r.rating
-FROM Reviews r
-JOIN HighPricedProducts hpp ON r.product_id = hpp.product_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list recent reviews with customer details
+-- 5. CTE: Recent reviews
 WITH RecentReviews AS (
-    SELECT review_id, customer_id
+    SELECT review_id, product_id, review_date
     FROM Reviews
-    WHERE review_date >= '2024-01-01'
+    WHERE review_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT rr.review_id, c.first_name
-FROM RecentReviews rr
-JOIN Customers c ON rr.customer_id = c.customer_id;
+SELECT r.review_id, p.product_name, r.review_date
+FROM RecentReviews r
+JOIN Products p ON r.product_id = p.product_id;
 
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new review
-DELIMITER //
-CREATE PROCEDURE AddReview(
-    IN p_review_id INT,
-    IN p_product_id INT,
-    IN p_customer_id INT,
-    IN p_rating INT,
-    IN p_comment TEXT,
-    IN p_review_date DATE
+-- 6. CTE: Ranked reviews by helpfulness
+WITH RankedReviews AS (
+    SELECT review_id, product_id, helpful_votes,
+           RANK() OVER (PARTITION BY product_id ORDER BY helpful_votes DESC) AS help_rank
+    FROM Reviews
 )
+SELECT review_id, product_id, helpful_votes, help_rank
+FROM RankedReviews
+WHERE help_rank <= 5;
+
+-- 7. Stored Procedure: Approve review
+DELIMITER //
+CREATE PROCEDURE ApproveReview(IN rev_id INT)
 BEGIN
-    INSERT INTO Reviews (review_id, product_id, customer_id, rating, comment, review_date)
-    VALUES (p_review_id, p_product_id, p_customer_id, p_rating, p_comment, p_review_date);
+    UPDATE Reviews SET status = 'Approved' WHERE review_id = rev_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a review's rating
+-- 8. Stored Procedure: Get product reviews
 DELIMITER //
-CREATE PROCEDURE UpdateReviewRating(
-    IN p_review_id INT,
-    IN p_new_rating INT
-)
+CREATE PROCEDURE GetProductReviews(IN prod_id INT)
 BEGIN
-    UPDATE Reviews
-    SET rating = p_new_rating
-    WHERE review_id = p_review_id;
+    SELECT review_id, rating, comment
+    FROM Reviews
+    WHERE product_id = prod_id AND status = 'Approved';
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a review
+-- 9. Stored Procedure: Update review rating
 DELIMITER //
-CREATE PROCEDURE DeleteReview(
-    IN p_review_id INT
-)
+CREATE PROCEDURE UpdateReviewRating(IN rev_id INT, IN new_rating INT)
 BEGIN
-    DELETE FROM Reviews
-    WHERE review_id = p_review_id;
+    UPDATE Reviews SET rating = new_rating WHERE review_id = rev_id;
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve review details
-DELIMITER //
-CREATE PROCEDURE GetReviewDetails(
-    IN p_review_id INT
-)
-BEGIN
-    SELECT r.review_id, p.product_name, c.first_name, r.rating
-    FROM Reviews r
-    JOIN Products p ON r.product_id = p.product_id
-    JOIN Customers c ON r.customer_id = c.customer_id
-    WHERE r.review_id = p_review_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new review
-INSERT INTO Reviews (review_id, product_id, customer_id, rating, comment, review_date)
-VALUES (801, 1, 1, 5, 'Great product!', '2025-06-07');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a review's comment
-UPDATE Reviews
-SET comment = 'Updated: Excellent product!'
-WHERE review_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a review
-DELETE FROM Reviews
-WHERE review_id = 1;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates review rating within a transaction
+-- 10. TCL: Update review with rollback
 START TRANSACTION;
-UPDATE Reviews
-SET rating = 4
-WHERE review_id = 1;
+UPDATE Reviews SET rating = 5 WHERE review_id = 1;
+UPDATE Reviews SET comment = 'Updated comment' WHERE review_id = 1;
+-- Simulate error
+INSERT INTO Reviews (review_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit review status
+START TRANSACTION;
+UPDATE Reviews SET status = 'Approved' WHERE review_id = 2;
+SAVEPOINT status_updated;
+UPDATE Reviews SET helpful_votes = helpful_votes + 1 WHERE review_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record review insertions
-CREATE TABLE ReviewLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    review_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogReviewInsert
-AFTER INSERT ON Reviews
-FOR EACH ROW
-BEGIN
-    INSERT INTO ReviewLog (review_id, action, log_date, user_id)
-    VALUES (NEW.review_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback review update
+START TRANSACTION;
+UPDATE Reviews SET comment = 'New comment' WHERE review_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log review rating updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Reviews TO 'user6'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Reviews TO 'review_moderator';
+
+-- 15. Trigger: Log review updates
 DELIMITER //
-CREATE TRIGGER LogReviewRatingUpdate
+CREATE TRIGGER LogReviewUpdate
 AFTER UPDATE ON Reviews
 FOR EACH ROW
 BEGIN
     IF OLD.rating != NEW.rating THEN
-        INSERT INTO ReviewLog (review_id, action, log_date, user_id)
-        VALUES (NEW.review_id, CONCAT('RATING_UPDATE: ', OLD.rating, ' to ', NEW.rating), NOW(), USER());
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Review Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Review ID: ', NEW.review_id, ' Rating changed to ', NEW.rating),
+                'Reviews', 'Rating update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to validate review ratings
+-- 16. Trigger: Validate rating
 DELIMITER //
 CREATE TRIGGER ValidateReviewRating
 BEFORE INSERT ON Reviews
@@ -2771,3541 +922,3088 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Rating must be between 1 and 5';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log review deletions
+-- 17. Trigger: Update product rating
 DELIMITER //
-CREATE TRIGGER LogReviewDelete
-AFTER DELETE ON Reviews
+CREATE TRIGGER UpdateProductRating
+AFTER INSERT ON Reviews
 FOR EACH ROW
 BEGIN
-    INSERT INTO ReviewLog (review_id, action, log_date, user_id)
-    VALUES (OLD.review_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    UPDATE Products SET rating = (
+        SELECT AVG(rating) FROM Reviews WHERE product_id = NEW.product_id
+    ) WHERE product_id = NEW.product_id;
+END;
+// DELIMITER ;
 
--- **Table 11: Subscriptions**
+-- 18. Window Function: Rank reviews by rating
+SELECT review_id, product_id, rating,
+       RANK() OVER (PARTITION BY product_id ORDER BY rating DESC) AS rating_rank
+FROM Reviews;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active subscriptions
-CREATE VIEW ActiveSubscriptions AS
-SELECT subscription_id, customer_id, plan_name
-FROM Subscriptions
-WHERE is_active = TRUE;
+-- 19. Window Function: Running total of helpful votes
+SELECT review_id, product_id, helpful_votes,
+       SUM(helpful_votes) OVER (PARTITION BY product_id ORDER BY review_id) AS running_votes
+FROM Reviews;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of subscriptions with customer details
-CREATE VIEW SubscriptionCustomerDetails AS
-SELECT s.subscription_id, s.plan_name, c.first_name
-FROM Subscriptions s
-JOIN Customers c ON s.customer_id = c.customer_id;
+-- 20. Window Function: Review percentage by product
+SELECT review_id, product_id, rating,
+       COUNT(*) OVER (PARTITION BY product_id) / COUNT(*) OVER () * 100 AS review_percentage
+FROM Reviews;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of subscriptions by plan
-CREATE VIEW SubscriptionsByPlan AS
-SELECT plan_name, COUNT(*) AS subscription_count
-FROM Subscriptions
-GROUP BY plan_name;
+-- Table 7: Payments
+-- 1. View: Completed payments
+CREATE VIEW CompletedPayments AS
+SELECT payment_id, order_id, amount, payment_date
+FROM Payments
+WHERE status = 'Completed';
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent subscriptions
-CREATE VIEW RecentSubscriptions AS
-SELECT subscription_id, customer_id, start_date
-FROM Subscriptions
-WHERE start_date >= '2024-01-01';
+-- 2. View: Payments with orders
+CREATE VIEW PaymentsWithOrders AS
+SELECT p.payment_id, p.amount, o.order_id, o.customer_id
+FROM Payments p
+JOIN Orders o ON p.order_id = o.order_id;
 
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count subscriptions by customer
-WITH SubscriptionCounts AS (
-    SELECT customer_id, COUNT(*) AS subscription_count
-    FROM Subscriptions
+-- 3. View: High-amount payments
+CREATE VIEW HighAmountPayments AS
+SELECT payment_id, order_id, amount
+FROM Payments
+WHERE amount > 500;
+
+-- 4. CTE: Total payments by customer
+WITH CustomerPayments AS (
+    SELECT customer_id, SUM(amount) AS total_paid
+    FROM Payments
     GROUP BY customer_id
 )
-SELECT c.customer_id, c.first_name, sc.subscription_count
-FROM Customers c
-JOIN SubscriptionCounts sc ON c.customer_id = sc.customer_id;
+SELECT c.first_name, c.last_name, cp.total_paid
+FROM CustomerPayments cp
+JOIN Customers c ON cp.customer_id = c.customer_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list subscriptions with recent orders
-WITH RecentOrders AS (
-    SELECT customer_id
-    FROM Orders
-    WHERE order_date >= '2024-01-01'
+-- 5. CTE: Recent payments
+WITH RecentPayments AS (
+    SELECT payment_id, order_id, payment_date
+    FROM Payments
+    WHERE payment_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT s.subscription_id, s.plan_name
-FROM Subscriptions s
-JOIN RecentOrders ro ON s.customer_id = ro.customer_id;
+SELECT p.payment_id, o.order_id, p.payment_date
+FROM RecentPayments p
+JOIN Orders o ON p.order_id = o.order_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find subscriptions nearing end date
-WITH ExpiringSubscriptions AS (
-    SELECT subscription_id, customer_id
-    FROM Subscriptions
-    WHERE end_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+-- 6. CTE: Ranked payments by amount
+WITH RankedPayments AS (
+    SELECT payment_id, customer_id, amount,
+           RANK() OVER (ORDER BY amount DESC) AS amount_rank
+    FROM Payments
 )
-SELECT es.subscription_id, c.first_name
-FROM ExpiringSubscriptions es
-JOIN Customers c ON es.customer_id = c.customer_id;
+SELECT payment_id, customer_id, amount, amount_rank
+FROM RankedPayments
+WHERE amount_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list active subscriptions with customer details
-WITH ActiveSubscriptions AS (
-    SELECT subscription_id, customer_id
-    FROM Subscriptions
-    WHERE is_active = TRUE
-)
-SELECT asub.subscription_id, c.first_name
-FROM ActiveSubscriptions asub
-JOIN Customers c ON asub.customer_id = c.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new subscription
+-- 7. Stored Procedure: Refund payment
 DELIMITER //
-CREATE PROCEDURE AddSubscription(
-    IN p_subscription_id INT,
-    IN p_customer_id INT,
-    IN p_plan_name VARCHAR(100),
-    IN p_start_date DATE,
-    IN p_end_date DATE,
-    IN p_is_active BOOLEAN
-)
+CREATE PROCEDURE RefundPayment(IN pay_id INT)
 BEGIN
-    INSERT INTO Subscriptions (subscription_id, customer_id, plan_name, start_date, end_date, is_active)
-    VALUES (p_subscription_id, p_customer_id, p_plan_name, p_start_date, p_end_date, p_is_active);
+    UPDATE Payments SET status = 'Refunded' WHERE payment_id = pay_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a subscription's end date
+-- 8. Stored Procedure: Get customer payments
 DELIMITER //
-CREATE PROCEDURE UpdateSubscriptionEndDate(
-    IN p_subscription_id INT,
-    IN p_new_end_date DATE
-)
+CREATE PROCEDURE GetCustomerPayments(IN cust_id INT)
 BEGIN
-    UPDATE Subscriptions
-    SET end_date = p_new_end_date
-    WHERE subscription_id = p_subscription_id;
+    SELECT payment_id, order_id, amount, payment_date
+    FROM Payments
+    WHERE customer_id = cust_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a subscription
+-- 9. Stored Procedure: Update payment status
 DELIMITER //
-CREATE PROCEDURE DeleteSubscription(
-    IN p_subscription_id INT
-)
+CREATE PROCEDURE UpdatePaymentStatus(IN pay_id INT, IN new_status VARCHAR(50))
 BEGIN
-    DELETE FROM Subscriptions
-    WHERE subscription_id = p_subscription_id;
+    UPDATE Payments SET status = new_status WHERE payment_id = pay_id;
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve subscription details
-DELIMITER //
-CREATE PROCEDURE GetSubscriptionDetails(
-    IN p_subscription_id INT
-)
-BEGIN
-    SELECT s.subscription_id, s.plan_name, c.first_name
-    FROM Subscriptions s
-    JOIN Customers c ON s.customer_id = c.customer_id
-    WHERE s.subscription_id = p_subscription_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new subscription
-INSERT INTO Subscriptions (subscription_id, customer_id, plan_name, start_date, end_date, is_active)
-VALUES (901, 1, 'Premium', '2025-06-07', '2026-06-07', TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a subscription's plan name
-UPDATE Subscriptions
-SET plan_name = 'Ultra'
-WHERE subscription_id = 1;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive subscription
-DELETE FROM Subscriptions
-WHERE subscription_id = 1 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates subscription active status within a transaction
+-- 10. TCL: Update payment with rollback
 START TRANSACTION;
-UPDATE Subscriptions
-SET is_active = FALSE
-WHERE subscription_id = 1;
+UPDATE Payments SET amount = 1000 WHERE payment_id = 1;
+UPDATE Payments SET status = 'Completed' WHERE payment_id = 1;
+-- Simulate error
+INSERT INTO Payments (payment_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit payment update
+START TRANSACTION;
+UPDATE Payments SET payment_method = 'Credit Card' WHERE payment_id = 2;
+SAVEPOINT method_updated;
+UPDATE Payments SET transaction_id = 'TXN999999' WHERE payment_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record subscription insertions
-CREATE TABLE SubscriptionLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    subscription_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogSubscriptionInsert
-AFTER INSERT ON Subscriptions
-FOR EACH ROW
-BEGIN
-    INSERT INTO SubscriptionLog (subscription_id, action, log_date, user_id)
-    VALUES (NEW.subscription_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback payment update
+START TRANSACTION;
+UPDATE Payments SET amount = 500 WHERE payment_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log subscription plan updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Payments TO 'user7'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Payments TO 'finance_manager';
+
+-- 15. Trigger: Log payment updates
 DELIMITER //
-CREATE TRIGGER LogSubscriptionPlanUpdate
-AFTER UPDATE ON Subscriptions
+CREATE TRIGGER LogPaymentUpdate
+AFTER UPDATE ON Payments
 FOR EACH ROW
 BEGIN
-    IF OLD.plan_name != NEW.plan_name THEN
-        INSERT INTO SubscriptionLog (subscription_id, action, log_date, user_id)
-        VALUES (NEW.subscription_id, CONCAT('PLAN_UPDATE: ', OLD.plan_name, ' to ', NEW.plan_name), NOW(), USER());
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Payment Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Payment ID: ', NEW.payment_id, ' Status changed to ', NEW.status),
+                'Payments', 'Status update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid end dates
+-- 16. Trigger: Validate payment amount
 DELIMITER //
-CREATE TRIGGER PreventInvalidEndDate
-BEFORE INSERT ON Subscriptions
+CREATE TRIGGER ValidatePaymentAmount
+BEFORE INSERT ON Payments
 FOR EACH ROW
 BEGIN
-    IF NEW.end_date < NEW.start_date THEN
+    IF NEW.amount <= 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'End date cannot be before start date';
+        SET MESSAGE_TEXT = 'Payment amount must be positive';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log subscription deletions
+-- 17. Trigger: Log payment insertion
 DELIMITER //
-CREATE TRIGGER LogSubscriptionDelete
-AFTER DELETE ON Subscriptions
+CREATE TRIGGER LogPaymentInsertion
+AFTER INSERT ON Payments
 FOR EACH ROW
 BEGIN
-    INSERT INTO SubscriptionLog (subscription_id, action, log_date, user_id)
-    VALUES (OLD.subscription_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (NEW.customer_id, 'Payment Insert', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Payment ID: ', NEW.payment_id, ' Amount: ', NEW.amount),
+            'Payments', 'New payment');
+END;
+// DELIMITER ;
 
--- **Table 12: Wishlists**
+-- 18. Window Function: Rank payments by amount
+SELECT payment_id, customer_id, amount,
+       RANK() OVER (PARTITION BY customer_id ORDER BY amount DESC) AS amount_rank
+FROM Payments;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active wishlists
-CREATE VIEW ActiveWishlists AS
-SELECT wishlist_id, customer_id, product_id, added_date
-FROM Wishlists
-WHERE is_active = TRUE;
+-- 19. Window Function: Running total of payments
+SELECT payment_id, customer_id, amount,
+       SUM(amount) OVER (PARTITION BY customer_id ORDER BY payment_date) AS running_total
+FROM Payments;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of wishlists with customer and product details
-CREATE VIEW WishlistDetails AS
-SELECT w.wishlist_id, c.first_name, p.product_name
-FROM Wishlists w
-JOIN Customers c ON w.customer_id = c.customer_id
-JOIN Products p ON w.product_id = p.product_id
-WHERE w.is_active = TRUE;
+-- 20. Window Function: Payment percentage by customer
+SELECT payment_id, customer_id, amount,
+       amount / SUM(amount) OVER (PARTITION BY customer_id) * 100 AS payment_percentage
+FROM Payments;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of wishlists added in 2025
-CREATE VIEW RecentWishlists AS
-SELECT wishlist_id, customer_id, product_id
-FROM Wishlists
-WHERE YEAR(added_date) = 2025;
+-- Table 8: Shipments
+-- 1. View: In-transit shipments
+CREATE VIEW InTransitShipments AS
+SELECT shipment_id, order_id, shipping_date, carrier
+FROM Shipments
+WHERE status = 'In Transit';
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of wishlists with product categories
-CREATE VIEW WishlistCategories AS
-SELECT w.wishlist_id, w.product_id, c.category_name
-FROM Wishlists w
-JOIN Products p ON w.product_id = p.product_id
-JOIN Categories c ON p.category_id = c.category_id;
+-- 2. View: Shipments with orders
+CREATE VIEW ShipmentsWithOrders AS
+SELECT s.shipment_id, s.order_id, o.customer_id
+FROM Shipments s
+JOIN Orders o ON s.order_id = o.order_id;
 
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count wishlist items by customer
-WITH WishlistCounts AS (
-    SELECT customer_id, COUNT(*) AS wishlist_count
-    FROM Wishlists
-    GROUP BY customer_id
+-- 3. View: Expensive shipments
+CREATE VIEW ExpensiveShipments AS
+SELECT shipment_id, order_id, shipping_cost
+FROM Shipments
+WHERE shipping_cost > 12;
+
+-- 4. CTE: Total shipping cost by carrier
+WITH CarrierCosts AS (
+    SELECT carrier, SUM(shipping_cost) AS total_cost
+    FROM Shipments
+    GROUP BY carrier
 )
-SELECT c.customer_id, c.first_name, wc.wishlist_count
-FROM Customers c
-JOIN WishlistCounts wc ON c.customer_id = wc.customer_id;
+SELECT carrier, total_cost
+FROM CarrierCosts
+ORDER BY total_cost DESC;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list wishlists with high-priced products
-WITH HighPricedProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE price > 100
+-- 5. CTE: Recent shipments
+WITH RecentShipments AS (
+    SELECT shipment_id, order_id, shipping_date
+    FROM Shipments sh
+    WHERE shipping_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT w.wishlist_id, w.customer_id, w.product_id
-FROM Wishlists w
-JOIN HighPricedProducts hpp ON w.product_id = hpp.product_id;
+SELECT s.shipment_id, o.order_id, s.shipping_date
+FROM RecentShipments s
+JOIN Orders o ON s.order_id = o.order_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find wishlists for recent customers
-WITH RecentCustomers AS (
-    SELECT customer_id
-    FROM Customers
-    WHERE registration_date >= '2024-01-01'
+-- 6. CTE: Ranked shipments by cost
+WITH RankedShipments AS (
+    SELECT shipment_idähän, order_id, shipping_cost,
+           RANK() OVER (ORDER BY shipping_cost DESC) AS cost_rank
+    FROM Shipments
 )
-SELECT w.wishlist_id, w.product_id
-FROM Wishlists w
-JOIN RecentCustomers rc ON w.customer_id = rc.customer_id;
+SELECT shipment_id, order_id, shipping_cost, cost_rank
+FROM RankedShipments
+WHERE cost_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list wishlists with active products
-WITH ActiveProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE is_active = TRUE
-)
-SELECT w.wishlist_id, w.customer_id
-FROM Wishlists w
-JOIN ActiveProducts ap ON w.product_id = ap.product_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new wishlist item
+-- 7. Stored Procedure: Update shipment status
 DELIMITER //
-CREATE PROCEDURE AddWishlistItem(
-    IN p_wishlist_id INT,
-    IN p_customer_id INT,
-    IN p_product_id INT,
-    IN p_added_date DATETIME,
-    IN p_is_active BOOLEAN
-)
+CREATE PROCEDURE UpdateShipmentStatus(IN ship_id INT, IN new_status VARCHAR(50))
 BEGIN
-    INSERT INTO Wishlists (wishlist_id, customer_id, product_id, added_date, is_active)
-    VALUES (p_wishlist_id, p_customer_id, p_product_id, p_added_date, p_is_active);
+    UPDATE Shipments SET status = new_status WHERE shipment_id = ship_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a wishlist item's active status
+-- 8. Stored Procedure: Get order shipments
 DELIMITER //
-CREATE PROCEDURE UpdateWishlistStatus(
-    IN p_wishlist_id INT,
-    IN p_is_active BOOLEAN
-)
+CREATE PROCEDURE GetOrderShipments(IN ord_id INT)
 BEGIN
-    UPDATE Wishlists
-    SET is_active = p_is_active
-    WHERE wishlist_id = p_wishlist_id;
+    SELECT shipment_id, carrier, shipping_date
+    FROM Shipments
+    WHERE order_id = ord_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a wishlist item
+-- 9. Stored Procedure: Add shipment
 DELIMITER //
-CREATE PROCEDURE DeleteWishlistItem(
-    IN p_wishlist_id INT
-)
+CREATE PROCEDURE AddShipment(IN ord_id INT, IN carrier VARCHAR(50), IN cost DECIMAL(10,2))
 BEGIN
-    DELETE FROM Wishlists
-    WHERE wishlist_id = p_wishlist_id;
+    INSERT INTO Shipments (shipment_id, order_id, carrier, shipping_cost, shipping_date)
+    VALUES ((SELECT MAX(shipment_id) + 1 FROM Shipments), ord_id, carrier, cost, CURDATE());
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve wishlist details
-DELIMITER //
-CREATE PROCEDURE GetWishlistDetails(
-    IN p_wishlist_id INT
-)
-BEGIN
-    SELECT w.wishlist_id, c.first_name, p.product_name
-    FROM Wishlists w
-    JOIN Customers c ON w.customer_id = c.customer_id
-    JOIN Products p ON w.product_id = p.product_id
-    WHERE w.wishlist_id = p_wishlist_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new wishlist item
-INSERT INTO Wishlists (wishlist_id, customer_id, product_id, added_date, is_active)
-VALUES (1001, 201, 21, '2025-06-07 10:00:00', TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a wishlist item's active status
-UPDATE Wishlists
-SET is_active = FALSE
-WHERE wishlist_id = 1001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive wishlist item
-DELETE FROM Wishlists
-WHERE wishlist_id = 1001 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates wishlist active status within a transaction
+-- 10. TCL: Update shipment with rollback
 START TRANSACTION;
-UPDATE Wishlists
-SET is_active = TRUE
-WHERE wishlist_id = 1001;
+UPDATE Shipments SET status = 'Delivered' WHERE shipment_id = 1;
+UPDATE Shipments sh SET tracking_number = 'TRK999999' WHERE shipment_id = 1;
+-- Simulate error
+INSERT INTO Shipments (shipment_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit shipment update
+START TRANSACTION;
+UPDATE Shipments SET carrier = 'FedEx' WHERE shipment_id = 2;
+SAVEPOINT carrier_updated;
+UPDATE Shipments SET estimated_delivery_date = DATE_ADD(CURDATE(), INTERVAL 5 DAY) WHERE shipment_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record wishlist insertions
-CREATE TABLE WishlistLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    wishlist_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogWishlistInsert
-AFTER INSERT ON Wishlists
-FOR EACH ROW
-BEGIN
-    INSERT INTO WishlistLog (wishlist_id, action, log_date, user_id)
-    VALUES (NEW.wishlist_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback shipment update
+START TRANSACTION;
+UPDATE Shipments SET shipping_cost = 15.99 WHERE shipment_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log wishlist active status updates
-DELIMITER //
-CREATE TRIGGER LogWishlistStatusUpdate
-AFTER UPDATE ON Wishlists
-FOR EACH ROW
-BEGIN
-    IF OLD.is_active != NEW.is_active THEN
-        INSERT INTO WishlistLog (wishlist_id, action, log_date, user_id)
-        VALUES (NEW.wishlist_id, CONCAT('STATUS_UPDATE: ', OLD.is_active, ' to ', NEW.is_active), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Shipments TO 'user8'@'localhost';
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent duplicate wishlist entries
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Shipments TO 'logistics_manager';
+
+-- 15. Trigger: Log shipment updates
 DELIMITER //
-CREATE TRIGGER PreventDuplicateWishlist
-BEFORE INSERT ON Wishlists
+CREATE TRIGGER LogShipmentUpdate
+AFTER UPDATE ON Shipments
 FOR EACH ROW
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM Wishlists
-        WHERE customer_id = NEW.customer_id AND product_id = NEW.product_id AND is_active = TRUE
-    ) THEN
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Shipment Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Shipment ID: ', NEW.shipment_id, ' Status changed to ', NEW.status),
+                'Shipments', 'Status update');
+                  END IF ;
+                  END ;
+// DELIMITER ;
+
+-- 16. Trigger: Validate shipping cost
+DELIMITER //
+CREATE TRIGGER ValidateShippingCost
+BEFORE INSERT ON Shipments
+FOR EACH ROW
+BEGIN
+    IF NEW.shipping_cost < 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Product already exists in customer\'s active wishlist';
+        SET MESSAGE_TEXT = 'Shipping cost cannot be negative';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log wishlist deletions
+-- 17. Trigger: Log shipment insertion
 DELIMITER //
-CREATE TRIGGER LogWishlistDelete
-AFTER DELETE ON Wishlists
+CREATE TRIGGER LogShipmentInsertion
+AFTER INSERT ON Shipments
 FOR EACH ROW
 BEGIN
-    INSERT INTO WishlistLog (wishlist_id, action, log_date, user_id)
-    VALUES (OLD.wishlist_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Shipment Insert', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Shipment ID: ', NEW.shipment_id, ' for Order ID: ', NEW.order_id),
+            'Shipments', 'New shipment');
+END;
+// DELIMITER ;
 
--- **Table 13: Cart_Items**
+-- 18. Window Function: Rank shipments by cost
+SELECT shipment_id, order_id, shipping_cost,
+       RANK() OVER (PARTITION BY carrier ORDER BY shipping_cost DESC) AS cost_rank
+FROM Shipments;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active cart items
-CREATE VIEW ActiveCartItems AS
-SELECT cart_item_id, customer_id, product_id, quantity
-FROM Cart_Items
-WHERE quantity > 0;
+-- 19. Window Function: Running total of shipping costs
+SELECT shipment_id, order_id, shipping_cost,
+       SUM(shipping_cost) OVER (PARTITION BY carrier ORDER BY shipping_date) AS running_cost
+FROM Shipments;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of cart items with product details
-CREATE VIEW CartItemDetails AS
-SELECT ci.cart_item_id, c.first_name, p.product_name, ci.quantity
-FROM Cart_Items ci
-JOIN Customers c ON ci.customer_id = c.customer_id
-JOIN Products p ON ci.product_id = p.product_id;
+-- 20. Window Function: Shipment percentage by carrier
+SELECT shipment_id, carrier, shipping_cost,
+       shipping_cost / SUM(shipping_cost) OVER (PARTITION BY carrier) * 100 AS cost_percentage
+FROM Shipments;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of cart items added recently
-CREATE VIEW RecentCartItems AS
-SELECT cart_item_id, customer_id, product_id
-FROM Cart_Items
-WHERE added_date >= '2025-01-01';
+-- Table 9: Warehouses
+-- 1. View: Active warehouses
+CREATE VIEW ActiveWarehouses AS
+SELECT warehouse_id, warehouse_name, city
+FROM Warehouses
+WHERE operational_since <= CURDATE();
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of cart items with total cost
-CREATE VIEW CartItemCosts AS
-SELECT ci.cart_item_id, ci.product_id, ci.quantity, (ci.quantity * p.price) AS total_cost
-FROM Cart_Items ci
-JOIN Products p ON ci.product_id = p.product_id;
+-- 2. View: Warehouses with inventory
+CREATE VIEW WarehousesWithInventory AS
+SELECT w.warehouse_id, w.warehouse_name, COUNT(i.inventory_id) AS item_count
+FROM Warehouses w
+LEFT JOIN Inventory i ON w.warehouse_id = i.warehouse_id
+GROUP BY w.warehouse_id;
 
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count cart items by customer
-WITH CartItemCounts AS (
-    SELECT customer_id, COUNT(*) AS item_count
-    FROM Cart_Items
-    GROUP BY customer_id
+-- 3. View: Warehouse managers
+CREATE VIEW WarehouseManagers AS
+SELECT warehouse_id, warehouse_name, manager_name, contact_phone
+FROM Warehouses;
+
+-- 4. CTE: Warehouse inventory count
+WITH WarehouseInventory AS (
+    SELECT warehouse_id, COUNT(*) AS inventory_count
+    FROM Inventory
+    GROUP BY warehouse_id
 )
-SELECT c.customer_id, c.first_name, cic.item_count
-FROM Customers c
-JOIN CartItemCounts cic ON c.customer_id = cic.customer_id;
+SELECT w.warehouse_name, wi.inventory_count
+FROM WarehouseInventory wi
+JOIN Warehouses w ON wi.warehouse_id = w.warehouse_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list cart items for high-priced products
-WITH HighPricedProducts AS (
-    SELECT product_id, price
-    FROM Products
-    WHERE price > 100
+-- 5. CTE: Large warehouses
+WITH LargeWarehouses AS (
+    SELECT warehouse_id, warehouse_name, capacity
+    FROM Warehouses
+    WHERE capacity > 8000
 )
-SELECT ci.cart_item_id, ci.customer_id, ci.product_id, hpp.price
-FROM Cart_Items ci
-JOIN HighPricedProducts hpp ON ci.product_id = hpp.product_id;
+SELECT warehouse_name, capacity
+FROM LargeWarehouses
+ORDER BY capacity DESC;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find cart items for recent customers
-WITH RecentCustomers AS (
-    SELECT customer_id
-    FROM Customers
-    WHERE registration_date >= '2024-01-01'
+-- 6. CTE: Ranked warehouses by capacity
+WITH RankedWarehouses AS (
+    SELECT warehouse_id, warehouse_name, capacity,
+           RANK() OVER (ORDER BY capacity DESC) AS capacity_rank
+    FROM Warehouses
 )
-SELECT ci.cart_item_id, ci.product_id, ci.quantity
-FROM Cart_Items ci
-JOIN RecentCustomers rc ON ci.customer_id = rc.customer_id;
+SELECT warehouse_name, capacity, capacity_rank
+FROM RankedWarehouses
+WHERE capacity_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list cart items with low stock products
-WITH LowStockProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE stock_quantity < 50
-)
-SELECT ci.cart_item_id, ci.customer_id
-FROM Cart_Items ci
-JOIN LowStockProducts lsp ON ci.product_id = lsp.product_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new cart item
+-- 7. Stored Procedure: Update warehouse manager
 DELIMITER //
-CREATE PROCEDURE AddCartItem(
-    IN p_cart_item_id INT,
-    IN p_customer_id INT,
-    IN p_product_id INT,
-    IN p_quantity INT,
-    IN p_added_date DATETIME
-)
+CREATE PROCEDURE UpdateWarehouseManager(IN w_id INT, IN new_manager VARCHAR(50))
 BEGIN
-    INSERT INTO Cart_Items (cart_item_id, customer_id, product_id, quantity, added_date)
-    VALUES (p_cart_item_id, p_customer_id, p_product_id, p_quantity, p_added_date);
+    UPDATE Warehouses SET manager_name = new_manager WHERE warehouse_id = w_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a cart item's quantity
+-- 8. Stored Procedure: Get warehouse inventory
 DELIMITER //
-CREATE PROCEDURE UpdateCartItemQuantity(
-    IN p_cart_item_id INT,
-    IN p_new_quantity INT
-)
+CREATE PROCEDURE GetWarehouseInventory(IN w_id INT)
 BEGIN
-    UPDATE Cart_Items
-    SET quantity = p_new_quantity
-    WHERE cart_item_id = p_cart_item_id;
+    SELECT i.inventory_id, p.product_name, i.quantity
+    FROM Inventory i
+    JOIN Products p ON i.product_id = p.product_id
+    WHERE i.warehouse_id = w_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a cart item
+-- 9. Stored Procedure: Add warehouse
 DELIMITER //
-CREATE PROCEDURE DeleteCartItem(
-    IN p_cart_item_id INT
-)
+CREATE PROCEDURE AddWarehouse(IN name VARCHAR(100), IN cap INT)
 BEGIN
-    DELETE FROM Cart_Items
-    WHERE cart_item_id = p_cart_item_id;
+    INSERT INTO Warehouses (warehouse_id, warehouse_name, capacity, operational_date)
+    VALUES ((SELECT MAX(warehouse_id) + 1 FROM Warehouses), name, cap, CURRENT_DATE);
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve cart item details
-DELIMITER //
-CREATE PROCEDURE GetCartItemDetails(
-    IN p_cart_item_id INT
-)
-BEGIN
-    SELECT ci.cart_item_id, c.first_name, p.product_name, ci.quantity
-    FROM Cart_Items ci
-    JOIN Customers c ON ci.customer_id = c.customer_id
-    JOIN Products p ON ci.product_id = p.product_id
-    WHERE ci.cart_item_id = p_cart_item_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new cart item
-INSERT INTO Cart_Items (cart_item_id, customer_id, product_id, quantity, added_date)
-VALUES (2001, 201, 21, 2, '2025-06-07 12:00:00');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a cart item's quantity
-UPDATE Cart_Items
-SET quantity = 3
-WHERE cart_item_id = 2001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a cart item
-DELETE FROM Cart_Items
-WHERE cart_item_id = 2001;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates cart item quantity within a transaction
+-- 10. TCL: Update warehouse with rollback
 START TRANSACTION;
-UPDATE Cart_Items
-SET quantity = quantity + 1
-WHERE cart_item_id = 2001;
+UPDATE Warehouses SET contact_phone = '555-7777' WHERE warehouse_id = 1;
+UPDATE Warehouses SET address = '123 New Ware St' WHERE warehouse_id = 1;
+-- Simulate error
+INSERT INTO Warehouses (warehouse_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit warehouse update
+START TRANSACTION;
+UPDATE Warehouses SET manager_name = 'New Manager' WHERE warehouse_id = 2;
+SAVEPOINT manager_updated;
+UPDATE Warehouses SET city = 'New City' WHERE warehouse_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record cart item insertions
-CREATE TABLE CartItemLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    cart_item_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
+-- 12. TCL: Rollback warehouse update
+START TRANSACTION;
+UPDATE Warehouses SET capacity = 9000 WHERE warehouse_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Warehouses TO 'user9'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Warehouses TO 'warehouse_admin';
+
+-- 15. Trigger: Log warehouse updates
 DELIMITER //
-CREATE TRIGGER LogCartItemInsert
-AFTER INSERT ON Cart_Items
+CREATE TRIGGER LogWarehouseUpdate
+AFTER UPDATE ON Warehouses
 FOR EACH ROW
 BEGIN
-    INSERT INTO CartItemLog (cart_item_id, action, log_date, user_id)
-    VALUES (NEW.cart_item_id, 'INSERT', NOW(), USER());
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Warehouse Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Warehouse ID: ', NEW.warehouse_id, ' Manager changed to ', NEW.manager_name),
+            'Warehouses', 'Manager update');
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate warehouse capacity
+DELIMITER //
+CREATE TRIGGER ValidateWarehouseCapacity
+BEFORE INSERT ON Warehouses
+FOR EACH ROW
+BEGIN
+    IF NEW.capacity <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Capacity must be positive';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log warehouse deletion
+DELIMITER //
+CREATE TRIGGER LogWarehouseDeletion
+AFTER DELETE ON Warehouses
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Warehouse Deletion', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Warehouse ID: ', OLD.warehouse_id, ' deleted'),
+            'Warehouses', 'Warehouse removal');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank warehouses by capacity
+SELECT warehouse_id, warehouse_name, capacity,
+       RANK() OVER (ORDER BY capacity DESC) AS capacity_rank
+FROM Warehouses;
+
+-- 19. Window Function: Running total of warehouses by state
+SELECT warehouse_id, warehouse_name, state,
+       COUNT(*) OVER (PARTITION BY state ORDER BY warehouse_id) AS state_warehouse_count
+FROM Warehouses;
+
+-- 20. Window Function: Warehouse percentage by city
+SELECT warehouse_id, warehouse_name, city,
+       COUNT(*) OVER (PARTITION BY city) / COUNT(*) OVER () * 100 AS city_percentage
+FROM Warehouses;
+
+-- Table 10: Inventory
+-- 1. View: Low stock inventory
+CREATE VIEW LowStockInventory AS
+SELECT inventory_id, product_id, warehouse_id, quantity
+FROM Inventory
+WHERE quantity < min_stock_level;
+
+-- 2. View: Inventory with products
+CREATE VIEW InventoryWithProducts AS
+SELECT i.inventory_id, p.product_name, i.quantity
+FROM Inventory i
+JOIN Products p ON i.product_id = p.product_id;
+
+-- 3. View: Active inventory
+CREATE VIEW ActiveInventory AS
+SELECT inventory_id, product_id, warehouse_id, quantity
+FROM Inventory
+WHERE status = 'In Stock';
+
+-- 4. CTE: Total inventory by warehouse
+WITH WarehouseInventory AS (
+    SELECT warehouse_id, SUM(quantity) AS total_quantity
+    FROM Inventory
+    GROUP BY warehouse_id
+)
+SELECT w.warehouse_name, wi.total_quantity
+FROM WarehouseInventory wi
+JOIN Warehouses w ON wi.warehouse_id = w.warehouse_id;
+
+-- 5. CTE: Low stock items
+WITH LowStockItems AS (
+    SELECT inventory_id, product_id, quantity, min_stock_level
+    FROM Inventory
+    WHERE quantity < min_stock_level
+)
+SELECT i.inventory_id, p.product_name, i.quantity
+FROM LowStockItems i
+JOIN Products p ON i.product_id = p.product_id;
+
+-- 6. CTE: Ranked inventory by quantity
+WITH RankedInventory AS (
+    SELECT inventory_id, product_id, quantity,
+           RANK() OVER (PARTITION BY warehouse_id ORDER BY quantity DESC) AS qty_rank
+    FROM Inventory
+)
+SELECT inventory_id, product_id, quantity, qty_rank
+FROM RankedInventory
+WHERE qty_rank <= 5;
+
+-- 7. Stored Procedure: Update inventory quantity
+DELIMITER //
+CREATE PROCEDURE UpdateInventoryQuantity(IN inv_id INT, IN new_qty INT)
+BEGIN
+    UPDATE Inventory SET quantity = new_qty WHERE inventory_id = inv_id;
 END //
 DELIMITER ;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log cart item quantity updates
+-- 8. Stored Procedure: Reorder inventory
 DELIMITER //
-CREATE TRIGGER LogCartItemQuantityUpdate
-AFTER UPDATE ON Cart_Items
+CREATE PROCEDURE ReorderInventory(IN inv_id INT)
+BEGIN
+    UPDATE Inventory SET quantity = quantity + reorder_quantity
+    WHERE inventory_id = inv_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get inventory by product
+DELIMITER //
+CREATE PROCEDURE GetInventoryByProduct(IN prod_id INT)
+BEGIN
+    SELECT inventory_id, warehouse_id, quantity
+    FROM Inventory
+    WHERE product_id = prod_id;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update inventory with rollback
+START TRANSACTION;
+UPDATE Inventory SET quantity = quantity - 10 WHERE inventory_id = 1;
+UPDATE Inventory SET status = 'Low Stock' WHERE inventory_id = 1;
+-- Simulate error
+INSERT INTO Inventory (inventory_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit inventory update
+START TRANSACTION;
+UPDATE Inventory SET quantity = quantity + 50 WHERE inventory_id = 2;
+SAVEPOINT qty_updated;
+UPDATE Inventory SET last_updated = CURRENT_DATE WHERE inventory_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback inventory update
+START TRANSACTION;
+UPDATE Inventory SET quantity = 100 WHERE inventory_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Inventory TO 'user10'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Inventory TO 'inventory_manager';
+
+-- 15. Trigger: Log inventory updates
+DELIMITER //
+CREATE TRIGGER LogInventoryUpdate
+AFTER UPDATE ON Inventory
 FOR EACH ROW
 BEGIN
     IF OLD.quantity != NEW.quantity THEN
-        INSERT INTO CartItemLog (cart_item_id, action, log_date, user_id)
-        VALUES (NEW.cart_item_id, CONCAT('QUANTITY_UPDATE: ', OLD.quantity, ' to ', NEW.quantity), NOW(), USER());
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Inventory Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Inventory ID: ', NEW.inventory_id, ' Quantity changed to ', NEW.quantity),
+                'Inventory', 'Stock update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative quantities
+-- 16. Trigger: Validate inventory quantity
 DELIMITER //
-CREATE TRIGGER PreventNegativeCartQuantity
-BEFORE UPDATE ON Cart_Items
+CREATE TRIGGER ValidateInventoryQuantity
+BEFORE INSERT ON Inventory
 FOR EACH ROW
 BEGIN
     IF NEW.quantity < 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cart item quantity cannot be negative';
+        SET MESSAGE_TEXT = 'Quantity cannot be negative';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log cart item deletions
+-- 17. Trigger: Update inventory status
 DELIMITER //
-CREATE TRIGGER LogCartItemDelete
-AFTER DELETE ON Cart_Items
+CREATE TRIGGER UpdateInventoryStatus
+AFTER UPDATE ON Inventory
 FOR EACH ROW
 BEGIN
-    INSERT INTO CartItemLog (cart_item_id, action, log_date, user_id)
-    VALUES (OLD.cart_item_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+    IF NEW.quantity < NEW.min_stock_level THEN
+        UPDATE Inventory SET new_status = 'Low Stock' WHERE inventory_id = NEW.inventory_id;
+    END IF;
+END;
+// DELIMITER ;
 
--- **Table 14: Promotions**
+-- 18. Window Function: Rank inventory by quantity
+SELECT inventory_id, product_id, quantity,
+       RANK() OVER (PARTITION BY warehouse_id ORDER BY quantity DESC) AS qty_rank
+FROM Inventory;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active promotions
+-- 19. Window Function: Running total of inventory
+SELECT inventory_id, product_id, quantity,
+       SUM(quantity) OVER (PARTITION BY warehouse_id ORDER BY inventory_id) AS running_qty
+FROM Inventory;
+
+-- 20. Window Function: Inventory percentage by warehouse
+SELECT inventory_id, product_id, quantity,
+       quantity / SUM(quantity) OVER (PARTITION BY warehouse_id) * 100 AS qty_percentage
+FROM Inventory;
+
+-- Table 11: Promotions
+-- 1. View: Active promotions
 CREATE VIEW ActivePromotions AS
 SELECT promotion_id, promotion_name, discount_percentage
 FROM Promotions
 WHERE is_active = TRUE;
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of promotions with product details
-CREATE VIEW PromotionProductDetails AS
+-- 2. View: Promotions with products
+CREATE VIEW PromotionsWithProducts AS
 SELECT pr.promotion_id, pr.promotion_name, p.product_name
 FROM Promotions pr
-JOIN Products p ON pr.promotion_id = p.promotion_id;
+JOIN Products p ON pr.product_id = p.product_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of promotions with high discounts
+-- 3. View: High discount promotions
 CREATE VIEW HighDiscountPromotions AS
 SELECT promotion_id, promotion_name, discount_percentage
 FROM Promotions
-WHERE discount_percentage > 20;
+WHERE discount_percentage >= 20;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent promotions
-CREATE VIEW RecentPromotions AS
-SELECT promotion_id, promotion_name, start_date
-FROM Promotions
-WHERE start_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count promotions by month
-WITH PromotionsByMonth AS (
-    SELECT MONTH(start_date) AS promo_month, COUNT(*) AS promo_count
+-- 4. CTE: Total promotions by product
+WITH ProductPromotions AS (
+    SELECT product_id, COUNT(*) AS prom_count
     FROM Promotions
-    GROUP BY MONTH(start_date)
+    GROUP BY product_id
 )
-SELECT promo_month, promo_count
-FROM PromotionsByMonth;
+SELECT p.product_name, pp.prom_count
+FROM ProductPromotions pp
+JOIN Products p ON pp.product_id = p.product_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list promotions with high discounts
-WITH HighDiscounts AS (
-    SELECT promotion_id
+-- 5. CTE: Recent promotions
+WITH RecentPromotions AS (
+    SELECT promotion_id, promotion_name, start_date
     FROM Promotions
-    WHERE discount_percentage > 20
+    WHERE start_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT pr.promotion_id, pr.promotion_name
-FROM Promotions pr
-JOIN HighDiscounts hd ON pr.promotion_id = hd.promotion_id;
+SELECT promotion_name, start_date
+FROM RecentPromotions;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find active promotions
-WITH ActivePromos AS (
-    SELECT promotion_id
+-- 6. CTE: Ranked promotions by discount
+WITH RankedPromotions AS (
+    SELECT promotion_id, product_id, discount_percentage,
+           RANK() OVER (PARTITION BY product_id ORDER BY discount_percentage DESC) AS disc_rank
     FROM Promotions
-    WHERE is_active = TRUE
 )
-SELECT pr.promotion_id, pr.promotion_name
-FROM Promotions pr
-JOIN ActivePromos ap ON pr.promotion_id = ap.promotion_id;
+SELECT promotion_id, product_id, discount_percentage, disc_rank
+FROM RankedPromotions
+WHERE disc_rank <= 5;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list promotions nearing end
-WITH ExpiringPromotions AS (
-    SELECT promotion_id
-    FROM Promotions
-    WHERE end_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-)
-SELECT pr.promotion_id, pr.promotion_name
-FROM Promotions pr
-JOIN ExpiringPromotions ep ON pr.promotion_id = ep.promotion_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new promotion
+-- 7. Stored Procedure: Activate promotion
 DELIMITER //
-CREATE PROCEDURE AddPromotion(
-    IN p_promotion_id INT,
-    IN p_promotion_name VARCHAR(100),
-    IN p_discount_percentage DECIMAL(5,2),
-    IN p_start_date DATE,
-    IN p_end_date DATE,
-    IN p_is_active BOOLEAN
-)
+CREATE PROCEDURE ActivatePromotion(IN prom_id INT)
 BEGIN
-    INSERT INTO Promotions (promotion_id, promotion_name, discount_percentage, start_date, end_date, is_active)
-    VALUES (p_promotion_id, p_promotion_name, p_discount_percentage, p_start_date, p_end_date, p_is_active);
+    UPDATE Promotions SET is_active = TRUE WHERE promotion_id = prom_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a promotion's discount
+-- 8. Stored Procedure: Get product promotions
 DELIMITER //
-CREATE PROCEDURE UpdatePromotionDiscount(
-    IN p_promotion_id INT,
-    IN p_new_discount DECIMAL(5,2)
-)
+CREATE PROCEDURE GetProductPromotions(IN prod_id INT)
 BEGIN
-    UPDATE Promotions
-    SET discount_percentage = p_new_discount
-    WHERE promotion_id = p_promotion_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a promotion
-DELIMITER //
-CREATE PROCEDURE DeletePromotion(
-    IN p_promotion_id INT
-)
-BEGIN
-    DELETE FROM Promotions
-    WHERE promotion_id = p_promotion_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve promotion details
-DELIMITER //
-CREATE PROCEDURE GetPromotionDetails(
-    IN p_promotion_id INT
-)
-BEGIN
-    SELECT promotion_id, promotion_name, discount_percentage, start_date, end_date
+    SELECT promotion_id, promotion_name, discount_percentage
     FROM Promotions
-    WHERE promotion_id = p_promotion_id;
+    WHERE product_id = prod_id AND is_active = TRUE;
 END //
 DELIMITER ;
 
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new promotion
-INSERT INTO Promotions (promotion_id, promotion_name, discount_percentage, start_date, end_date, is_active)
-VALUES (3001, 'Summer Sale', 25.00, '2025-06-01', '2025-06-30', TRUE);
+-- 9. Stored Procedure: End promotion
+DELIMITER //
+CREATE PROCEDURE EndPromotion(IN prom_id INT)
+BEGIN
+    UPDATE Promotions SET is_active = FALSE, end_date = CURDATE()
+    WHERE promotion_id = prom_id;
+END //
+DELIMITER ;
 
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a promotion's end date
-UPDATE Promotions
-SET end_date = '2025-07-15'
-WHERE promotion_id = 3001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive promotion
-DELETE FROM Promotions
-WHERE promotion_id = 3001 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates promotion active status within a transaction
+-- 10. TCL: Update promotion with rollback
 START TRANSACTION;
-UPDATE Promotions
-SET is_active = FALSE
-WHERE promotion_id = 3001;
+UPDATE Promotions SET discount_percentage = 25.00 WHERE promotion_id = 1;
+UPDATE Promotions SET is_active = TRUE WHERE promotion_id = 1;
+-- Simulate error
+INSERT INTO Promotions (promotion_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit promotion update
+START TRANSACTION;
+UPDATE Promotions SET start_date = CURDATE() WHERE promotion_id = 2;
+SAVEPOINT date_updated;
+UPDATE Promotions SET max_uses = 200 WHERE promotion_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record promotion insertions
-CREATE TABLE PromotionLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    promotion_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogPromotionInsert
-AFTER INSERT ON Promotions
-FOR EACH ROW
-BEGIN
-    INSERT INTO PromotionLog (promotion_id, action, log_date, user_id)
-    VALUES (NEW.promotion_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback promotion update
+START TRANSACTION;
+UPDATE Promotions SET discount_percentage = 30.00 WHERE promotion_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log promotion discount updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Promotions TO 'user11'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Promotions TO 'marketing_manager';
+
+-- 15. Trigger: Log promotion updates
 DELIMITER //
-CREATE TRIGGER LogPromotionDiscountUpdate
+CREATE TRIGGER LogPromotionUpdate
 AFTER UPDATE ON Promotions
 FOR EACH ROW
 BEGIN
     IF OLD.discount_percentage != NEW.discount_percentage THEN
-        INSERT INTO PromotionLog (promotion_id, action, log_date, user_id)
-        VALUES (NEW.promotion_id, CONCAT('DISCOUNT_UPDATE: ', OLD.discount_percentage, ' to ', NEW.discount_percentage), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Promotion Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Promotion ID: ', NEW.promotion_id, ' Discount changed to %', NEW.discount_percentage),
+                'Promotions', 'Discount update');
+                END IF ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid promotion dates
+-- 16. Trigger: Validate discount percentage
 DELIMITER //
-CREATE TRIGGER PreventInvalidPromotionDates
+CREATE TRIGGER ValidateDiscountPercentage
 BEFORE INSERT ON Promotions
 FOR EACH ROW
 BEGIN
-    IF NEW.end_date < NEW.start_date THEN
+    IF NEW.discount_percentage < 0 OR NEW.discount_percentage > 100 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'End date cannot be before start date';
+        SET MESSAGE_TEXT = 'Discount percentage must be between 0 and 100';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log promotion deletions
+-- 17. Trigger: Log promotion end
 DELIMITER //
-CREATE TRIGGER LogPromotionDelete
-AFTER DELETE ON Promotions
+CREATE TRIGGER LogPromotionEnd
+AFTER UPDATE ON Promotions
 FOR EACH ROW
 BEGIN
-    INSERT INTO PromotionLog (promotion_id, action, log_date, user_id)
-    VALUES (OLD.promotion_id, 'DELETE', NOW(), USER());
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Promotion Ended', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Promotion ID: ', NEW.promotion_id, ' ended'),
+                'Promotions', 'Promotion deactivation');
+END IF ;
+END;
+
+// DELIMITER ;
+
+-- 18. Window Function: Rank promotions by discount
+SELECT promotion_id, product_id, discount_percentage,
+       RANK() OVER (PARTITION BY product_id ORDER BY discount_percentage DESC) AS disc_rank
+FROM Promotions;
+
+-- 19. Window Function: Running total of promotions
+SELECT promotion_id, product_id, discount_percentage,
+       COUNT(*) OVER (PARTITION BY product_id ORDER BY start_date) AS running_prom_count
+FROM Promotions;
+
+-- 20. Window Function: Promotion percentage by product
+SELECT promotion_id, product_id, discount_percentage,
+       COUNT(*) OVER (PARTITION BY product_id) / COUNT(*) OVER () * 100 AS prom_percentage
+FROM Promotions;
+
+-- Table 12: Returns
+-- 1. View: Approved returns
+CREATE VIEW ApprovedReturns AS
+SELECT return_id, order_id, refund_amount
+FROM Returns
+WHERE status = 'Approved';
+
+-- 2. View: Returns with products
+CREATE VIEW ReturnsWithProducts AS
+SELECT r.return_id, p.product_name, r.refunded_amount
+FROM Returns r
+JOIN Products p ON r.product_id = p.product_id;
+
+-- 3. View: Recent returns
+CREATE VIEW RecentReturns AS
+SELECT return_id, order_id, return_date
+FROM Returns
+WHERE return_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
+
+-- 4. CTE: Total refunds by customer
+WITH CustomerRefunds AS (
+    SELECT customer_id, SUM(refunded_amount) AS total_refunded
+    FROM Returns
+    GROUP BY customer_id
+)
+SELECT c.first_name, c.last_name, cr.total_refunded
+FROM CustomerRefunds cr
+JOIN Customers c ON cr.customer_id = c.customer_id;
+
+-- 5. CTE: Defective returns
+WITH DefectiveReturns AS (
+    SELECT return_id, product_id, reason
+    FROM Returns
+    WHERE reason = 'Defective'
+)
+SELECT r.return_id, p.product_name, r.reason
+FROM DefectiveReturns r
+JOIN Products p ON r.product_id = p.product_id;
+
+-- 6. CTE: Ranked returns by refund
+WITH RankedReturns AS (
+    SELECT return_id, customer_id, refunded_amount,
+           RANK() OVER (PARTITION BY customer_id ORDER BY refunded_amount DESC) AS refund_rank
+    FROM Returns
+)
+SELECT return_id, customer_id, refunded_amount, refund_rank
+FROM RankedReturns
+WHERE refund_rank <= 5;
+
+-- 7. Stored Procedure: Approve return
+DELIMITER //
+CREATE PROCEDURE ApproveReturn(IN ret_id INT)
+BEGIN
+    UPDATE Returns SET status = 'Approved' WHERE return_id = ret_id;
 END //
 DELIMITER ;
 
--- **Table 15: Coupons**
+-- 8. Stored Procedure: Get customer returns
+DELIMITER //
+CREATE PROCEDURE GetCustomerReturns(IN cust_id INT)
+BEGIN
+    SELECT return_id, product_id, refunded_amount, return_date
+    FROM Returns
+    WHERE customer_id = cust_id;
+END //
+DELIMITER ;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active coupons
+-- 9. Stored Procedure: Update refund amount
+DELIMITER //
+CREATE PROCEDURE UpdateRefundAmount(IN ret_id INT, IN new_amount DECIMAL(10,2))
+BEGIN
+    UPDATE Returns SET refunded_amount = new_amount WHERE return_id = ret_id;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update return with rollback
+START TRANSACTION;
+UPDATE Returns SET status = 'Approved' WHERE return_id = 1;
+UPDATE Returns SET refunded_amount = 1000 WHERE return_id = 1;
+-- Simulate error
+INSERT INTO Returns (return_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit return update
+START TRANSACTION;
+UPDATE Returns SET return_method = 'Mail' WHERE return_id = 2;
+SAVEPOINT method_updated;
+UPDATE Returns SET notes = 'Processed' WHERE return_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback return update
+START TRANSACTION;
+UPDATE Returns SET refunded_amount = 500 WHERE return_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Returns TO 'user12'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Returns TO 'returns_manager';
+
+-- 15. Trigger: Log return updates
+DELIMITER //
+CREATE TRIGGER LogReturnUpdate
+AFTER UPDATE ON Returns
+FOR EACH ROW
+BEGIN
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Return Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Return ID: ', NEW.return_id, ' Status changed to ', NEW.status),
+                'Returns', 'Status update');
+END IF;
+END ;
+// DELIMITER ;
+
+-- 16. Trigger: Validate refund amount
+DELIMITER //
+CREATE TRIGGER ValidateRefundAmount
+BEFORE INSERT ON Returns
+FOR EACH ROW
+BEGIN
+    IF NEW.refunded_amount < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Refund amount cannot be negative';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Update inventory on return
+DELIMITER //
+CREATE TRIGGER UpdateInventoryOnReturn
+AFTER INSERT ON Returns
+FOR EACH ROW
+BEGIN
+    UPDATE Inventory SET quantity = quantity + (
+        SELECT quantity FROM Orders WHERE order_id = NEW.order_id
+    ) WHERE product_id = NEW.product_id;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank returns by refund amount
+SELECT return_id, customer_id, refunded_amount,
+       RANK() OVER (PARTITION BY customer_id ORDER BY refunded_amount DESC) AS refund_rank
+FROM Returns;
+
+-- 19. Window Function: Running total of refunds
+SELECT return_id, customer_id, refunded_amount,
+       SUM(refunded_amount) OVER (PARTITION BY customer_id ORDER BY return_date) AS running_refunded
+FROM Returns;
+
+-- 20. Window Function: Refund percentage by customer
+SELECT return_id, customer_id, refunded_amount,
+       refunded_amount / SUM(refunded_amount) OVER (PARTITION BY customer_id) * 100 AS refund_percentage
+FROM Returns;
+
+-- Table 13: Wishlists
+-- 1. View: Active wishlists
+CREATE VIEW ActiveWishlists AS
+SELECT wishlist_id, customer_id, product_id
+FROM Wishlists
+WHERE is_active = TRUE;
+
+-- 2. View: Wishlists with products
+CREATE VIEW WishlistsWithProducts AS
+SELECT w.wishlist_id, p.product_name, w.customer_id
+FROM Wishlists w
+JOIN Products p ON w.product_id = p.product_id;
+
+-- 3. View: Customer wishlists
+CREATE VIEW CustomerWishlists AS
+SELECT w.wishlist_id, c.first_name, c.last_name
+FROM Wishlists w
+JOIN Customers c ON w.customer_id = c.customer_id;
+
+-- 4. CTE: Wishlist item count
+WITH WishlistItems AS (
+    SELECT customer_id, COUNT(*) AS item_count
+    FROM Wishlists
+    GROUP BY customer_id
+)
+SELECT c.first_name, c.last_name, wi.item_count
+FROM WishlistItems wi
+JOIN Customers c ON wi.customer_id = c.customer_id;
+
+-- 5. CTE: Recent wishlist items
+WITH RecentWishlistItems AS (
+    SELECT wishlist_id, product_id, created_date
+    FROM Wishlists
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT w.wishlist_id, p.product_name, w.created_date
+FROM RecentWishlistItems w
+JOIN Products p ON w.product_id = p.product_id;
+
+-- 6. CTE: Ranked wishlists by customer
+WITH RankedWishlists AS (
+    SELECT wishlist_id, customer_id,
+           COUNT(*) OVER (PARTITION BY customer_id) AS item_count,
+           RANK() OVER (PARTITION BY customer_id ORDER BY created_date DESC) AS wish_rank
+    FROM Wishlists
+    GROUP BY wishlist_id
+)
+SELECT wishlist_id, customer_id, item_count, wish_rank
+FROM RankedWishlists
+WHERE wish_rank <= 5;
+
+-- 7. Stored Procedure: Add wishlist item
+DELIMITER //
+CREATE PROCEDURE AddWishlistItem(IN cust_id INT, IN prod_id INT)
+BEGIN
+    INSERT INTO Wishlists (wishlist_id, customer_id, product_id, created_date, is_active)
+    VALUES ((SELECT MAX(wishlist_id) + 1 FROM Wishlists), cust_id, prod_id, CURDATE(), TRUE);
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Remove wishlist item
+DELIMITER //
+CREATE PROCEDURE RemoveWishlistItem(IN wish_id INT)
+BEGIN
+    UPDATE Wishlists SET is_active = FALSE WHERE wishlist_id = wish_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get customer wishlist
+DELIMITER //
+CREATE PROCEDURE GetCustomerWishlist(IN cust_id INT)
+BEGIN
+    SELECT w.wishlist_id, p.product_name
+    FROM Wishlists w
+    JOIN Products p ON w.product_id = p.product_id
+    WHERE w.customer_id = cust_id AND w.is_active = TRUE;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update wishlist with rollback
+START TRANSACTION;
+UPDATE Wishlists SET is_active = FALSE WHERE wishlist_id = 1;
+UPDATE Wishlists SET notes = 'Removed' WHERE wishlist_id = 1;
+-- Simulate error
+INSERT INTO Wishlists (wishlist_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit wishlist update
+START TRANSACTION;
+UPDATE Wishlists SET product_id = 2 WHERE wishlist_id = 2;
+SAVEPOINT product_updated;
+UPDATE Wishlists SET created_date = CURDATE() WHERE wishlist_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback wishlist update
+START TRANSACTION;
+UPDATE Wishlists SET is_active = TRUE WHERE wishlist_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Wishlists TO 'user13'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Wishlists TO 'customer_service';
+
+-- 15. Trigger: Log wishlist updates
+DELIMITER //
+CREATE TRIGGER LogWishlistUpdate
+AFTER UPDATE ON Wishlists
+FOR EACH ROW
+BEGIN
+    IF OLD.is_active != NEW.is_active THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Wishlist Update', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+                CONCAT('Wishlist ID: ', NEW.wishlist_id, ' Active status changed to ', NEW.is_active),
+                'Wishlists', 'Status update');
+END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate wishlist product
+DELIMITER //
+CREATE TRIGGER ValidateWishlistProduct
+BEFORE INSERT ON Wishlists
+FOR EACH ROW
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM Products WHERE product_id = NEW.product_id) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid product ID';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log wishlist insertion
+DELIMITER //
+CREATE TRIGGER LogWishlistInsertion
+AFTER INSERT ON Wishlists
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (NEW.customer_id, 'Wishlist Insert', NOW(), '127.0.0.1', 'Unknown', 'Success', 
+            CONCAT('Wishlist ID: ', NEW.wishlist_id, ' for Product ID: ', NEW.product_id),
+            'Wishlists', 'New wishlist item');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank wishlists by creation date
+SELECT wishlist_id, customer_id, created_date,
+       RANK() OVER (PARTITION BY customer_id ORDER BY created_date DESC) AS create_rank
+FROM Wishlists;
+
+-- 19. Window Function: Running total of wishlist items
+SELECT wishlist_id, customer_id, product_id,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY created_date) AS running_items
+FROM Wishlists;
+
+-- 20. Window Function: Wishlist percentage by customer
+SELECT wishlist_id, customer_id, product_id,
+       COUNT(*) OVER (PARTITION BY customer_id) / COUNT(*) OVER () * 100 AS wish_percentage
+FROM Wishlists;
+
+-- Table 14: Carts
+-- 1. View: Active carts
+CREATE VIEW ActiveCarts AS
+SELECT cart_id, customer_id, product_id, quantity, total_price
+FROM Carts
+WHERE is_active = TRUE;
+
+-- 2. View: Carts with products
+CREATE VIEW CartsWithProducts AS
+SELECT c.cart_id, p.product_name, c.quantity, c.total_price
+FROM Carts c
+JOIN Products p ON c.product_id = p.product_id
+WHERE c.is_active = TRUE;
+
+-- 3. View: Customer carts summary
+CREATE VIEW CustomerCartsSummary AS
+SELECT c.customer_id, cu.first_name, cu.last_name, COUNT(c.cart_id) AS item_count, SUM(c.total_price) AS total_value
+FROM Carts c
+JOIN Customers cu ON c.customer_id = cu.customer_id
+WHERE c.is_active = TRUE
+GROUP BY c.customer_id, cu.first_name, cu.last_name;
+
+-- 4. CTE: Cart total by customer
+WITH CartTotals AS (
+    SELECT customer_id, SUM(total_price) AS cart_total
+    FROM Carts
+    WHERE is_active = TRUE
+    GROUP BY customer_id
+)
+SELECT cu.first_name, cu.last_name, ct.cart_total
+FROM CartTotals ct
+JOIN Customers cu ON ct.customer_id = cu.customer_id
+WHERE ct.cart_total > 100;
+
+-- 5. CTE: Recent cart items
+WITH RecentCartItems AS (
+    SELECT cart_id, product_id, created_date
+    FROM Carts
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND is_active = TRUE
+)
+SELECT c.cart_id, p.product_name, c.created_date
+FROM RecentCartItems c
+JOIN Products p ON c.product_id = p.product_id;
+
+-- 6. CTE: Ranked carts by total price
+WITH RankedCarts AS (
+    SELECT cart_id, customer_id, total_price,
+           RANK() OVER (PARTITION BY customer_id ORDER BY total_price DESC) AS price_rank
+    FROM Carts
+    WHERE is_active = TRUE
+)
+SELECT r.cart_id, cu.first_name, r.total_price, r.price_rank
+FROM RankedCarts r
+JOIN Customers cu ON r.customer_id = cu.customer_id
+WHERE r.price_rank <= 3;
+
+-- 7. Stored Procedure: Add cart item
+DELIMITER //
+CREATE PROCEDURE AddCartItem(IN cust_id INT, IN prod_id INT, IN qty INT)
+BEGIN
+    DECLARE prod_price DECIMAL(10,2);
+    SELECT price INTO prod_price FROM Products WHERE product_id = prod_id;
+    INSERT INTO Carts (cart_id, customer_id, product_id, quantity, created_date, is_active, total_price)
+    VALUES ((SELECT COALESCE(MAX(cart_id), 0) + 1 FROM Carts), cust_id, prod_id, qty, CURDATE(), TRUE, prod_price * qty);
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Remove cart item
+DELIMITER //
+CREATE PROCEDURE RemoveCartItem(IN cart_id INT)
+BEGIN
+    UPDATE Carts SET is_active = FALSE, last_updated_date = CURDATE()
+    WHERE cart_id = cart_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get customer cart
+DELIMITER //
+CREATE PROCEDURE GetCustomerCart(IN cust_id INT)
+BEGIN
+    SELECT c.cart_id, p.product_name, c.quantity, c.total_price
+    FROM Carts c
+    JOIN Products p ON c.product_id = p.product_id
+    WHERE c.customer_id = cust_id AND c.is_active = TRUE;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update cart with rollback
+START TRANSACTION;
+UPDATE Carts SET quantity = quantity + 1 WHERE cart_id = 1;
+UPDATE Carts c SET total_price = (SELECT price * c.quantity FROM Products WHERE product_id = c.product_id) WHERE cart_id = 1;
+-- Simulate error
+INSERT INTO Carts (cart_id) VALUES (1); -- Duplicate key error
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit cart update
+START TRANSACTION;
+UPDATE Carts SET quantity = 3 WHERE cart_id = 2;
+SAVEPOINT quantity_updated;
+UPDATE Carts c SET total_price = (SELECT price * c.quantity FROM Products WHERE product_id = c.product_id), last_updated_date = CURDATE() WHERE cart_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback cart update
+START TRANSACTION;
+UPDATE Carts SET total_price = 50.00 WHERE cart_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Carts TO 'user14'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Carts TO 'cart_manager';
+
+-- 15. Trigger: Log cart updates
+DELIMITER //
+CREATE TRIGGER LogCartUpdate
+AFTER UPDATE ON Carts
+FOR EACH ROW
+BEGIN
+    IF OLD.quantity != NEW.quantity OR OLD.total_price != NEW.total_price THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Cart Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Cart ID: ', NEW.cart_id, ' Quantity: ', NEW.quantity, ' Total: ', NEW.total_price),
+                'Carts', 'Cart item updated');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate cart quantity
+DELIMITER //
+CREATE TRIGGER ValidateCartQuantity
+BEFORE INSERT ON Carts
+FOR EACH ROW
+BEGIN
+    IF NEW.quantity <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Quantity must be positive';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log cart insertion
+DELIMITER //
+CREATE TRIGGER LogCartInsertion
+AFTER INSERT ON Carts
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (NEW.customer_id, 'Cart Insert', NOW(), '127.0.0.1', 'Unknown', 'Success',
+            CONCAT('Cart ID: ', NEW.cart_id, ' Product ID: ', NEW.product_id, ' Quantity: ', NEW.quantity),
+            'Carts', 'New cart item added');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank carts by total price
+SELECT cart_id, customer_id, total_price,
+       RANK() OVER (PARTITION BY customer_id ORDER BY total_price DESC) AS price_rank
+FROM Carts
+WHERE is_active = TRUE;
+
+-- 19. Window Function: Running total of cart items
+SELECT cart_id, customer_id, quantity,
+       SUM(quantity) OVER (PARTITION BY customer_id ORDER BY created_date) AS running_quantity
+FROM Carts
+WHERE is_active = TRUE;
+
+-- 20. Window Function: Cart total price percentage by customer
+SELECT cart_id, customer_id, total_price,
+       total_price / SUM(total_price) OVER (PARTITION BY customer_id) * 100 AS price_percentage
+FROM Carts
+WHERE is_active = TRUE;
+
+-- Table 15: Employees
+-- 1. View: Active employees
+CREATE VIEW ActiveEmployees AS
+SELECT employee_id, first_name, last_name, department_id
+FROM Employees
+WHERE employment_status = 'Active';
+
+-- 2. View: Employees with departments
+CREATE VIEW EmployeesWithDepartments AS
+SELECT e.employee_id, e.first_name, e.last_name, d.department_name
+FROM Employees e
+JOIN Departments d ON e.department_id = d.department_id;
+
+-- 3. View: High-salary employees
+CREATE VIEW HighSalaryEmployees AS
+SELECT employee_id, first_name, last_name, salary
+FROM Employees
+WHERE salary > 80000;
+
+-- 4. CTE: Average salary by department
+WITH DepartmentAvgSalary AS (
+    SELECT department_id, AVG(salary) AS avg_salary
+    FROM Employees
+    GROUP BY department_id
+)
+SELECT e.first_name, e.last_name, e.salary, d.avg_salary
+FROM Employees e
+JOIN DepartmentAvgSalary d ON e.department_id = d.department_id
+WHERE e.salary > d.avg_salary;
+
+-- 5. CTE: Recent hires
+WITH RecentHires AS (
+    SELECT employee_id, first_name, last_name, hire_date
+    FROM Employees
+    WHERE hire_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+)
+SELECT r.first_name, r.last_name, r.hire_date, d.department_name
+FROM RecentHires r
+JOIN Employees e ON r.employee_id = e.employee_id
+JOIN Departments d ON e.department_id = d.department_id;
+
+-- 6. CTE: Ranked employees by salary
+WITH RankedEmployees AS (
+    SELECT employee_id, first_name, last_name, salary,
+           RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS salary_rank
+    FROM Employees
+)
+SELECT first_name, last_name, salary, salary_rank
+FROM RankedEmployees
+WHERE salary_rank <= 3;
+
+-- 7. Stored Procedure: Update employee salary
+DELIMITER //
+CREATE PROCEDURE UpdateEmployeeSalary(IN emp_id INT, IN new_salary DECIMAL(10,2))
+BEGIN
+    UPDATE Employees SET salary = new_salary WHERE employee_id = emp_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Terminate employee
+DELIMITER //
+CREATE PROCEDURE TerminateEmployee(IN emp_id INT)
+BEGIN
+    UPDATE Employees SET employment_status = 'Terminated', termination_date = CURDATE()
+    WHERE employee_id = emp_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get department employees
+DELIMITER //
+CREATE PROCEDURE GetDepartmentEmployees(IN dept_id INT)
+BEGIN
+    SELECT employee_id, first_name, last_name, salary
+    FROM Employees
+    WHERE department_id = dept_id AND employment_status = 'Active';
+END //
+DELIMITER ;
+
+-- 10. TCL: Update employee with rollback
+START TRANSACTION;
+UPDATE Employees SET salary = salary * 1.1 WHERE employee_id = 1;
+UPDATE Employees SET job_title = 'Senior Manager' WHERE employee_id = 1;
+-- Simulate error
+INSERT INTO Employees (employee_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit employee update
+START TRANSACTION;
+UPDATE Employees SET department_id = 2 WHERE employee_id = 2;
+SAVEPOINT dept_updated;
+UPDATE Employees SET email = 'new.email@company.com' WHERE employee_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback employee update
+START TRANSACTION;
+UPDATE Employees SET salary = 90000 WHERE employee_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Employees TO 'user15'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Employees TO 'hr_manager';
+
+-- 15. Trigger: Log employee updates
+DELIMITER //
+CREATE TRIGGER LogEmployeeUpdate
+AFTER UPDATE ON Employees
+FOR EACH ROW
+BEGIN
+    IF OLD.salary != NEW.salary THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.employee_id, 'Employee Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Employee ID: ', NEW.employee_id, ' Salary changed to ', NEW.salary),
+                'Employees', 'Salary update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate email
+DELIMITER //
+CREATE TRIGGER ValidateEmployeeEmail
+BEFORE INSERT ON Employees
+FOR EACH ROW
+BEGIN
+    IF NEW.email NOT LIKE '%@%.%' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid email format';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log employee termination
+DELIMITER //
+CREATE TRIGGER LogEmployeeTermination
+AFTER UPDATE ON Employees
+FOR EACH ROW
+BEGIN
+    IF OLD.employment_status != NEW.employment_status AND NEW.employment_status = 'Terminated' THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.employee_id, 'Employee Termination', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Employee ID: ', NEW.employee_id, ' terminated'),
+                'Employees', 'Termination');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank employees by salary
+SELECT employee_id, first_name, last_name, salary,
+       RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS salary_rank
+FROM Employees;
+
+-- 19. Window Function: Running total of salaries
+SELECT employee_id, first_name, last_name, salary,
+       SUM(salary) OVER (PARTITION BY department_id ORDER BY employee_id) AS running_salary
+FROM Employees;
+
+-- 20. Window Function: Salary percentage by department
+SELECT employee_id, first_name, last_name, salary,
+       salary / SUM(salary) OVER (PARTITION BY department_id) * 100 AS salary_percentage
+FROM Employees;
+
+-- Table 16: Departments
+-- 1. View: Active departments
+CREATE VIEW ActiveDepartments AS
+SELECT department_id, department_name, budget
+FROM Departments
+WHERE is_active = TRUE;
+
+-- 2. View: Departments with employees
+CREATE VIEW DepartmentsWithEmployees AS
+SELECT d.department_id, d.department_name, COUNT(e.employee_id) AS employee_count
+FROM Departments d
+LEFT JOIN Employees e ON d.department_id = e.department_id
+GROUP BY d.department_id, d.department_name;
+
+-- 3. View: High-budget departments
+CREATE VIEW HighBudgetDepartments AS
+SELECT department_id, department_name, budget
+FROM Departments
+WHERE budget > 500000;
+
+-- 4. CTE: Average budget by location
+WITH LocationAvgBudget AS (
+    SELECT location, AVG(budget) AS avg_budget
+    FROM Departments
+    GROUP BY location
+)
+SELECT d.department_name, d.budget, l.avg_budget
+FROM Departments d
+JOIN LocationAvgBudget l ON d.location = l.location
+WHERE d.budget > l.avg_budget;
+
+-- 5. CTE: Recent departments
+WITH RecentDepartments AS (
+    SELECT department_id, department_name, created_date
+    FROM Departments
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+)
+SELECT department_name, created_date
+FROM RecentDepartments
+ORDER BY created_date DESC;
+
+-- 6. CTE: Ranked departments by budget
+WITH RankedDepartments AS (
+    SELECT department_id, department_name, budget,
+           RANK() OVER (ORDER BY budget DESC) AS budget_rank
+    FROM Departments
+)
+SELECT department_name, budget, budget_rank
+FROM RankedDepartments
+WHERE budget_rank <= 3;
+
+-- 7. Stored Procedure: Update department budget
+DELIMITER //
+CREATE PROCEDURE UpdateDepartmentBudget(IN dept_id INT, IN new_budget DECIMAL(12,2))
+BEGIN
+    UPDATE Departments SET budget = new_budget WHERE department_id = dept_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Deactivate department
+DELIMITER //
+CREATE PROCEDURE DeactivateDepartment(IN dept_id INT)
+BEGIN
+    UPDATE Departments SET is_active = FALSE WHERE department_id = dept_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get department details
+DELIMITER //
+CREATE PROCEDURE GetDepartmentDetails(IN dept_id INT)
+BEGIN
+    SELECT department_id, department_name, budget, location
+    FROM Departments
+    WHERE department_id = dept_id;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update department with rollback
+START TRANSACTION;
+UPDATE Departments SET budget = budget * 1.05 WHERE department_id = 1;
+UPDATE Departments SET manager_id = 2 WHERE department_id = 1;
+-- Simulate error
+INSERT INTO Departments (department_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit department update
+START TRANSACTION;
+UPDATE Departments SET location = 'New York' WHERE department_id = 2;
+SAVEPOINT location_updated;
+UPDATE Departments SET department_name = 'Updated R&D' WHERE department_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback department update
+START TRANSACTION;
+UPDATE Departments SET budget = 600000 WHERE department_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Departments TO 'user16'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Departments TO 'admin_manager';
+
+-- 15. Trigger: Log department updates
+DELIMITER //
+CREATE TRIGGER LogDepartmentUpdate
+AFTER UPDATE ON Departments
+FOR EACH ROW
+BEGIN
+    IF OLD.budget != NEW.budget THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Department Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Department ID: ', NEW.department_id, ' Budget changed to ', NEW.budget),
+                'Departments', 'Budget update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate budget
+DELIMITER //
+CREATE TRIGGER ValidateDepartmentBudget
+BEFORE INSERT ON Departments
+FOR EACH ROW
+BEGIN
+    IF NEW.budget < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Budget cannot be negative';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log department deactivation
+DELIMITER //
+CREATE TRIGGER LogDepartmentDeactivation
+AFTER UPDATE ON Departments
+FOR EACH ROW
+BEGIN
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Department Deactivation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Department ID: ', NEW.department_id, ' deactivated'),
+                'Departments', 'Deactivation');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank departments by budget
+SELECT department_id, department_name, budget,
+       RANK() OVER (ORDER BY budget DESC) AS budget_rank
+FROM Departments;
+
+-- 19. Window Function: Running total of budgets
+SELECT department_id, department_name, budget,
+       SUM(budget) OVER (PARTITION BY location ORDER BY department_id) AS running_budget
+FROM Departments;
+
+-- 20. Window Function: Budget percentage by location
+SELECT department_id, department_name, budget,
+       budget / SUM(budget) OVER (PARTITION BY location) * 100 AS budget_percentage
+FROM Departments;
+
+-- Table 17: Transactions
+-- 1. View: Completed transactions
+CREATE VIEW CompletedTransactions AS
+SELECT transaction_id, payment_id, amount, transaction_date
+FROM Transactions
+WHERE status = 'Completed';
+
+-- 2. View: Transactions with payments
+CREATE VIEW TransactionsWithPayments AS
+SELECT t.transaction_id, t.amount, p.order_id, p.customer_id
+FROM Transactions t
+JOIN Payments p ON t.payment_id = p.payment_id;
+
+-- 3. View: High-amount transactions
+CREATE VIEW HighAmountTransactions AS
+SELECT transaction_id, payment_id, amount
+FROM Transactions
+WHERE amount > 1000;
+
+-- 4. CTE: Total transactions by customer
+WITH CustomerTransactions AS (
+    SELECT p.customer_id, SUM(t.amount) AS total_amount
+    FROM Transactions t
+    JOIN Payments p ON t.payment_id = p.payment_id
+    GROUP BY p.customer_id
+)
+SELECT c.first_name, c.last_name, ct.total_amount
+FROM CustomerTransactions ct
+JOIN Customers c ON ct.customer_id = c.customer_id;
+
+-- 5. CTE: Recent transactions
+WITH RecentTransactions AS (
+    SELECT transaction_id, payment_id, transaction_date
+    FROM Transactions
+    WHERE transaction_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT t.transaction_id, p.order_id, t.transaction_date
+FROM RecentTransactions t
+JOIN Payments p ON t.payment_id = p.payment_id;
+
+-- 6. CTE: Ranked transactions by amount
+WITH RankedTransactions AS (
+    SELECT transaction_id, payment_id, amount,
+           RANK() OVER (PARTITION BY payment_id ORDER BY amount DESC) AS amount_rank
+    FROM Transactions
+)
+SELECT transaction_id, payment_id, amount, amount_rank
+FROM RankedTransactions
+WHERE amount_rank <= 3;
+
+-- 7. Stored Procedure: Update transaction status
+DELIMITER //
+CREATE PROCEDURE UpdateTransactionStatus(IN trans_id INT, IN new_status VARCHAR(50))
+BEGIN
+    UPDATE Transactions SET status = new_status WHERE transaction_id = trans_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Get payment transactions
+DELIMITER //
+CREATE PROCEDURE GetPaymentTransactions(IN pay_id INT)
+BEGIN
+    SELECT transaction_id, amount, transaction_date
+    FROM Transactions
+    WHERE payment_id = pay_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Add transaction
+DELIMITER //
+CREATE PROCEDURE AddTransaction(IN pay_id INT, IN amt DECIMAL(10,2))
+BEGIN
+    INSERT INTO Transactions (transaction_id, payment_id, amount, transaction_date, status)
+    VALUES ((SELECT COALESCE(MAX(transaction_id), 0) + 1 FROM Transactions), pay_id, amt, NOW(), 'Pending');
+END //
+DELIMITER ;
+
+-- 10. TCL: Update transaction with rollback
+START TRANSACTION;
+UPDATE Transactions SET amount = 1500 WHERE transaction_id = 1;
+UPDATE Transactions SET status = 'Completed' WHERE transaction_id = 1;
+-- Simulate error
+INSERT INTO Transactions (transaction_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit transaction update
+START TRANSACTION;
+UPDATE Transactions SET transaction_date = NOW() WHERE transaction_id = 2;
+SAVEPOINT date_updated;
+UPDATE Transactions SET gateway = 'Stripe' WHERE transaction_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback transaction update
+START TRANSACTION;
+UPDATE Transactions SET amount = 2000 WHERE transaction_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Transactions TO 'user17'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Transactions TO 'finance_manager';
+
+-- 15. Trigger: Log transaction updates
+DELIMITER //
+CREATE TRIGGER LogTransactionUpdate
+AFTER UPDATE ON Transactions
+FOR EACH ROW
+BEGIN
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Transaction Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Transaction ID: ', NEW.transaction_id, ' Status changed to ', NEW.status),
+                'Transactions', 'Status update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate transaction amount
+DELIMITER //
+CREATE TRIGGER ValidateTransactionAmount
+BEFORE INSERT ON Transactions
+FOR EACH ROW
+BEGIN
+    IF NEW.amount <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Transaction amount must be positive';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log transaction insertion
+DELIMITER //
+CREATE TRIGGER LogTransactionInsertion
+AFTER INSERT ON Transactions
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (1, 'Transaction Insert', NOW(), '127.0.0.1', 'Unknown', 'Success',
+            CONCAT('Transaction ID: ', NEW.transaction_id, ' Amount: ', NEW.amount),
+            'Transactions', 'New transaction');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank transactions by amount
+SELECT transaction_id, payment_id, amount,
+       RANK() OVER (PARTITION BY payment_id ORDER BY amount DESC) AS amount_rank
+FROM Transactions;
+
+-- 19. Window Function: Running total of transactions
+SELECT transaction_id, payment_id, amount,
+       SUM(amount) OVER (PARTITION BY payment_id ORDER BY transaction_date) AS running_amount
+FROM Transactions;
+
+-- 20. Window Function: Transaction percentage by payment
+SELECT transaction_id, payment_id, amount,
+       amount / SUM(amount) OVER (PARTITION BY payment_id) * 100 AS amount_percentage
+FROM Transactions;
+
+-- Table 18: Discounts
+-- 1. View: Active discounts
+CREATE VIEW ActiveDiscounts AS
+SELECT discount_id, discount_code, discount_value
+FROM Discounts
+WHERE is_active = TRUE AND expiry_date >= CURDATE();
+
+-- 2. View: Discounts with orders
+CREATE VIEW DiscountsWithOrders AS
+SELECT d.discount_id, d.discount_code, COUNT(o.order_id) AS order_count
+FROM Discounts d
+LEFT JOIN Orders o ON d.discount_id = o.discount_id
+GROUP BY d.discount_id, d.discount_code;
+
+-- 3. View: High-value discounts
+CREATE VIEW HighValueDiscounts AS
+SELECT discount_id, discount_code, discount_value
+FROM Discounts
+WHERE discount_value > 50;
+
+-- 4. CTE: Total discount usage
+WITH DiscountUsage AS (
+    SELECT discount_id, COUNT(*) AS usage_count
+    FROM Orders
+    WHERE discount_id IS NOT NULL
+    GROUP BY discount_id
+)
+SELECT d.discount_code, du.usage_count
+FROM DiscountUsage du
+JOIN Discounts d ON du.discount_id = d.discount_id;
+
+-- 5. CTE: Recent discounts
+WITH RecentDiscounts AS (
+    SELECT discount_id, discount_code, created_date
+    FROM Discounts
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT discount_code, created_date
+FROM RecentDiscounts
+ORDER BY created_date DESC;
+
+-- 6. CTE: Ranked discounts by value
+WITH RankedDiscounts AS (
+    SELECT discount_id, discount_code, discount_value,
+           RANK() OVER (ORDER BY discount_value DESC) AS value_rank
+    FROM Discounts
+)
+SELECT discount_code, discount_value, value_rank
+FROM RankedDiscounts
+WHERE value_rank <= 3;
+
+-- 7. Stored Procedure: Activate discount
+DELIMITER //
+CREATE PROCEDURE ActivateDiscount(IN disc_id INT)
+BEGIN
+    UPDATE Discounts SET is_active = TRUE WHERE discount_id = disc_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Get discount details
+DELIMITER //
+CREATE PROCEDURE GetDiscountDetails(IN disc_id INT)
+BEGIN
+    SELECT discount_id, discount_code, discount_value, expiry_date
+    FROM Discounts
+    WHERE discount_id = disc_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Add discount
+DELIMITER //
+CREATE PROCEDURE AddDiscount(IN code VARCHAR(50), IN value DECIMAL(10,2))
+BEGIN
+    INSERT INTO Discounts (discount_id, discount_code, discount_value, created_date, is_active, expiry_date)
+    VALUES ((SELECT COALESCE(MAX(discount_id), 0) + 1 FROM Discounts), code, value, CURDATE(), TRUE, DATE_ADD(CURDATE(), INTERVAL 1 YEAR));
+END //
+DELIMITER ;
+
+-- 10. TCL: Update discount with rollback
+START TRANSACTION;
+UPDATE Discounts SET discount_value = 75 WHERE discount_id = 1;
+UPDATE Discounts SET is_active = TRUE WHERE discount_id = 1;
+-- Simulate error
+INSERT INTO Discounts (discount_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit discount update
+START TRANSACTION;
+UPDATE Discounts SET expiry_date = DATE_ADD(CURDATE(), INTERVAL 6 MONTH) WHERE discount_id = 2;
+SAVEPOINT expiry_updated;
+UPDATE Discounts SET discount_code = 'SALE2025' WHERE discount_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback discount update
+START TRANSACTION;
+UPDATE Discounts SET discount_value = 100 WHERE discount_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Discounts TO 'user18'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Discounts TO 'marketing_manager';
+
+-- 15. Trigger: Log discount updates
+DELIMITER //
+CREATE TRIGGER LogDiscountUpdate
+AFTER UPDATE ON Discounts
+FOR EACH ROW
+BEGIN
+    IF OLD.discount_value != NEW.discount_value THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Discount Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Discount ID: ', NEW.discount_id, ' Value changed to ', NEW.discount_value),
+                'Discounts', 'Value update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate discount value
+DELIMITER //
+CREATE TRIGGER ValidateDiscountValue
+BEFORE INSERT ON Discounts
+FOR EACH ROW
+BEGIN
+    IF NEW.discount_value <= 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Discount value must be positive';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log discount deactivation
+DELIMITER //
+CREATE TRIGGER LogDiscountDeactivation
+AFTER UPDATE ON Discounts
+FOR EACH ROW
+BEGIN
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Discount Deactivation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Discount ID: ', NEW.discount_id, ' deactivated'),
+                'Discounts', 'Deactivation');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank discounts by value
+SELECT discount_id, discount_code, discount_value,
+       RANK() OVER (ORDER BY discount_value DESC) AS value_rank
+FROM Discounts;
+
+-- 19. Window Function: Running total of discounts
+SELECT discount_id, discount_code, discount_value,
+       COUNT(*) OVER (ORDER BY created_date) AS running_discount_count
+FROM Discounts;
+
+-- 20. Window Function: Discount percentage
+SELECT discount_id, discount_code, discount_value,
+       discount_value / SUM(discount_value) OVER () * 100 AS value_percentage
+FROM Discounts;
+
+-- Table 19: Taxes
+-- 1. View: Active taxes
+CREATE VIEW ActiveTaxes AS
+SELECT tax_id, tax_name, tax_rate
+FROM Taxes
+WHERE is_active = TRUE;
+
+-- 2. View: Taxes with orders
+CREATE VIEW TaxesWithOrders AS
+SELECT t.tax_id, t.tax_name, COUNT(o.order_id) AS order_count
+FROM Taxes t
+LEFT JOIN Orders o ON t.tax_id = o.tax_id
+GROUP BY t.tax_id, t.tax_name;
+
+-- 3. View: High-rate taxes
+CREATE VIEW HighRateTaxes AS
+SELECT tax_id, tax_name, tax_rate
+FROM Taxes
+WHERE tax_rate > 5;
+
+-- 4. CTE: Total tax revenue
+WITH TaxRevenue AS (
+    SELECT tax_id, SUM(total_price * tax_rate / 100) AS total_tax
+    FROM Orders o
+    JOIN Taxes t ON o.tax_id = t.tax_id
+    GROUP BY tax_id
+)
+SELECT t.tax_name, tr.total_tax
+FROM TaxRevenue tr
+JOIN Taxes t ON tr.tax_id = t.tax_id;
+
+-- 5. CTE: Recent taxes
+WITH RecentTaxes AS (
+    SELECT tax_id, tax_name, created_date
+    FROM Taxes
+    WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+)
+SELECT tax_name, created_date
+FROM RecentTaxes
+ORDER BY created_date DESC;
+
+-- 6. CTE: Ranked taxes by rate
+WITH RankedTaxes AS (
+    SELECT tax_id, tax_name, tax_rate,
+           RANK() OVER (ORDER BY tax_rate DESC) AS rate_rank
+    FROM Taxes
+)
+SELECT tax_name, tax_rate, rate_rank
+FROM RankedTaxes
+WHERE rate_rank <= 3;
+
+-- 7. Stored Procedure: Update tax rate
+DELIMITER //
+CREATE PROCEDURE UpdateTaxRate(IN tax_id INT, IN new_rate DECIMAL(5,2))
+BEGIN
+    UPDATE Taxes SET tax_rate = new_rate WHERE tax_id = tax_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Deactivate tax
+DELIMITER //
+CREATE PROCEDURE DeactivateTax(IN tax_id INT)
+BEGIN
+    UPDATE Taxes SET is_active = FALSE WHERE tax_id = tax_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Add tax
+DELIMITER //
+CREATE PROCEDURE AddTax(IN name VARCHAR(100), IN rate DECIMAL(5,2))
+BEGIN
+    INSERT INTO Taxes (tax_id, tax_name, tax_rate, created_date, is_active)
+    VALUES ((SELECT COALESCE(MAX(tax_id), 0) + 1 FROM Taxes), name, rate, CURDATE(), TRUE);
+END //
+DELIMITER ;
+
+-- 10. TCL: Update tax with rollback
+START TRANSACTION;
+UPDATE Taxes SET tax_rate = 7.5 WHERE tax_id = 1;
+UPDATE Taxes SET is_active = TRUE WHERE tax_id = 1;
+-- Simulate error
+INSERT INTO Taxes (tax_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit tax update
+START TRANSACTION;
+UPDATE Taxes SET tax_name = 'Updated Sales Tax' WHERE tax_id = 2;
+SAVEPOINT name_updated;
+UPDATE Taxes SET jurisdiction = 'New York' WHERE tax_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback tax update
+START TRANSACTION;
+UPDATE Taxes SET tax_rate = 8.0 WHERE tax_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Taxes TO 'user19'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Taxes TO 'finance_manager';
+
+-- 15. Trigger: Log tax updates
+DELIMITER //
+CREATE TRIGGER LogTaxUpdate
+AFTER UPDATE ON Taxes
+FOR EACH ROW
+BEGIN
+    IF OLD.tax_rate != NEW.tax_rate THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Tax Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Tax ID: ', NEW.tax_id, ' Rate changed to ', NEW.tax_rate),
+                'Taxes', 'Rate update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate tax rate
+DELIMITER //
+CREATE TRIGGER ValidateTaxRate
+BEFORE INSERT ON Taxes
+FOR EACH ROW
+BEGIN
+    IF NEW.tax_rate < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Tax rate cannot be negative';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log tax deactivation
+DELIMITER //
+CREATE TRIGGER LogTaxDeactivation
+AFTER UPDATE ON Taxes
+FOR EACH ROW
+BEGIN
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (1, 'Tax Deactivation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Tax ID: ', NEW.tax_id, ' deactivated'),
+                'Taxes', 'Deactivation');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank taxes by rate
+SELECT tax_id, tax_name, tax_rate,
+       RANK() OVER (ORDER BY tax_rate DESC) AS rate_rank
+FROM Taxes;
+
+-- 19. Window Function: Running total of taxes
+SELECT tax_id, tax_name, tax_rate,
+       COUNT(*) OVER (PARTITION BY jurisdiction ORDER BY tax_id) AS tax_count
+FROM Taxes;
+
+-- 20. Window Function: Tax rate percentage
+SELECT tax_id, tax_name, tax_rate,
+       tax_rate / SUM(tax_rate) OVER () * 100 AS rate_percentage
+FROM Taxes;
+
+-- Table 20: Addresses
+-- 1. View: Primary addresses
+CREATE VIEW PrimaryAddresses AS
+SELECT address_id, customer_id, address_line1, city
+FROM Addresses
+WHERE is_default = TRUE;
+
+-- 2. View: Addresses with customers
+CREATE VIEW AddressesWithCustomers AS
+SELECT a.address_id, c.first_name, c.last_name, a.address_line1
+FROM Addresses a
+JOIN Customers c ON a.customer_id = c.customer_id;
+
+-- 3. View: Recent addresses
+CREATE VIEW RecentAddresses AS
+SELECT address_id, customer_id, created_date
+FROM Addresses
+WHERE created_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH);
+
+-- 4. CTE: Address count by customer
+WITH AddressCount AS (
+    SELECT customer_id, COUNT(*) AS address_count
+    FROM Addresses
+    GROUP BY customer_id
+)
+SELECT c.first_name, c.last_name, ac.address_count
+FROM AddressCount ac
+JOIN Customers c ON ac.customer_id = c.customer_id
+WHERE ac.address_count > 1;
+
+-- 5. CTE: Recent address updates
+WITH RecentAddressUpdates AS (
+    SELECT address_id, customer_id, last_updated
+    FROM Addresses
+    WHERE last_updated >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT a.address_id, c.first_name, a.last_updated
+FROM RecentAddressUpdates a
+JOIN Customers c ON a.customer_id = c.customer_id;
+
+-- 6. CTE: Ranked addresses by customer
+WITH RankedAddresses AS (
+    SELECT address_id, customer_id, created_date,
+           RANK() OVER (PARTITION BY customer_id ORDER BY created_date DESC) AS address_rank
+    FROM Addresses
+)
+SELECT address_id, customer_id, created_date, address_rank
+FROM RankedAddresses
+WHERE address_rank <= 2;
+
+-- 7. Stored Procedure: Update address
+DELIMITER //
+CREATE PROCEDURE UpdateAddress(IN addr_id INT, IN new_line1 VARCHAR(255))
+BEGIN
+    UPDATE Addresses SET address_line1 = new_line1, last_updated = CURDATE()
+    WHERE address_id = addr_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Set default address
+DELIMITER //
+CREATE PROCEDURE SetDefaultAddress(IN addr_id INT, IN cust_id INT)
+BEGIN
+    UPDATE Addresses SET is_default = FALSE WHERE customer_id = cust_id;
+    UPDATE Addresses SET is_default = TRUE WHERE address_id = addr_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Get customer addresses
+DELIMITER //
+CREATE PROCEDURE GetCustomerAddresses(IN cust_id INT)
+BEGIN
+    SELECT address_id, address_line1, city, is_default
+    FROM Addresses
+    WHERE customer_id = cust_id;
+END //
+DELIMITER ;
+
+-- 10. TCL: Update address with rollback
+START TRANSACTION;
+UPDATE Addresses SET city = 'New York' WHERE address_id = 1;
+UPDATE Addresses SET postal_code = '10001' WHERE address_id = 1;
+-- Simulate error
+INSERT INTO Addresses (address_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit address update
+START TRANSACTION;
+UPDATE Addresses SET address_line1 = '123 New St' WHERE address_id = 2;
+SAVEPOINT line_updated;
+UPDATE Addresses SET last_updated = CURDATE() WHERE address_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback address update
+START TRANSACTION;
+UPDATE Addresses SET state = 'CA' WHERE address_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Addresses TO 'user20'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Addresses TO 'customer_service';
+
+-- 15. Trigger: Log address updates
+DELIMITER //
+CREATE TRIGGER LogAddressUpdate
+AFTER UPDATE ON Addresses
+FOR EACH ROW
+BEGIN
+    IF OLD.address_line1 != NEW.address_line1 THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Address Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Address ID: ', NEW.address_id, ' Line1 changed to ', NEW.address_line1),
+                'Addresses', 'Address update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate postal code
+DELIMITER //
+CREATE TRIGGER ValidatePostalCode
+BEFORE INSERT ON Addresses
+FOR EACH ROW
+BEGIN
+    IF NEW.postal_code NOT REGEXP '^[0-9]{5}$' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid postal code format';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log address insertion
+DELIMITER //
+CREATE TRIGGER LogAddressInsertion
+AFTER INSERT ON Addresses
+FOR EACH ROW
+BEGIN
+    INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES (NEW.customer_id, 'Address Insert', NOW(), '127.0.0.1', 'Unknown', 'Success',
+            CONCAT('Address ID: ', NEW.address_id, ' for Customer ID: ', NEW.customer_id),
+            'Addresses', 'New address');
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank addresses by creation date
+SELECT address_id, customer_id, created_date,
+       RANK() OVER (PARTITION BY customer_id ORDER BY created_date DESC) AS create_rank
+FROM Addresses;
+
+-- 19. Window Function: Running total of addresses
+SELECT address_id, customer_id, created_date,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY created_date) AS address_count
+FROM Addresses;
+
+-- 20. Window Function: Address percentage by customer
+SELECT address_id, customer_id, created_date,
+       COUNT(*) OVER (PARTITION BY customer_id) / COUNT(*) OVER () * 100 AS address_percentage
+FROM Addresses;
+
+-- Table 21: Subscriptions
+-- 1. View: Active subscriptions
+CREATE VIEW ActiveSubscriptions AS
+SELECT subscription_id, customer_id, plan_name
+FROM Subscriptions
+WHERE status = 'Active';
+
+-- 2. View: Subscriptions with customers
+CREATE VIEW SubscriptionsWithCustomers AS
+SELECT s.subscription_id, c.first_name, c.last_name, s.plan_name
+FROM Subscriptions s
+JOIN Customers c ON s.customer_id = c.customer_id;
+
+-- 3. View: Premium subscriptions
+CREATE VIEW PremiumSubscriptions AS
+SELECT subscription_id, customer_id, plan_name, monthly_fee
+FROM Subscriptions
+WHERE monthly_fee > 20;
+
+-- 4. CTE: Total revenue by plan
+WITH PlanRevenue AS (
+    SELECT plan_name, SUM(monthly_fee) AS total_revenue
+    FROM Subscriptions
+    WHERE status = 'Active'
+    GROUP BY plan_name
+)
+SELECT plan_name, total_revenue
+FROM PlanRevenue
+ORDER BY total_revenue DESC;
+
+-- 5. CTE: Recent subscriptions
+WITH RecentSubscriptions AS (
+    SELECT subscription_id, customer_id, start_date
+    FROM Subscriptions
+    WHERE start_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT s.subscription_id, c.first_name, s.start_date
+FROM RecentSubscriptions s
+JOIN Customers c ON s.customer_id = c.customer_id;
+
+-- 6. CTE: Ranked subscriptions by fee
+WITH RankedSubscriptions AS (
+    SELECT subscription_id, customer_id, monthly_fee,
+           RANK() OVER (PARTITION BY customer_id ORDER BY monthly_fee DESC) AS fee_rank
+    FROM Subscriptions
+)
+SELECT subscription_id, customer_id, monthly_fee, fee_rank
+FROM RankedSubscriptions
+WHERE fee_rank <= 2;
+
+-- 7. Stored Procedure: Cancel subscription
+DELIMITER //
+CREATE PROCEDURE CancelSubscription(IN sub_id INT)
+BEGIN
+    UPDATE Subscriptions SET status = 'Cancelled', end_date = CURDATE()
+    WHERE subscription_id = sub_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Get customer subscriptions
+DELIMITER //
+CREATE PROCEDURE GetCustomerSubscriptions(IN cust_id INT)
+BEGIN
+    SELECT subscription_id, plan_name, monthly_fee, status
+    FROM Subscriptions
+    WHERE customer_id = cust_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Add subscription
+DELIMITER //
+CREATE PROCEDURE AddSubscription(IN cust_id INT, IN plan VARCHAR(100), IN fee DECIMAL(10,2))
+BEGIN
+    INSERT INTO Subscriptions (subscription_id, customer_id, plan_name, monthly_fee, start_date, status)
+    VALUES ((SELECT COALESCE(MAX(subscription_id), 0) + 1 FROM Subscriptions), cust_id, plan, fee, CURDATE(), 'Active');
+END //
+DELIMITER ;
+
+-- 10. TCL: Update subscription with rollback
+START TRANSACTION;
+UPDATE Subscriptions SET monthly_fee = 25 WHERE subscription_id = 1;
+UPDATE Subscriptions SET status = 'Active' WHERE subscription_id = 1;
+-- Simulate error
+INSERT INTO Subscriptions (subscription_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit subscription update
+START TRANSACTION;
+UPDATE Subscriptions SET plan_name = 'Premium Plus' WHERE subscription_id = 2;
+SAVEPOINT plan_updated;
+UPDATE Subscriptions SET next_billing_date = DATE_ADD(CURDATE(), INTERVAL 1 MONTH) WHERE subscription_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback subscription update
+START TRANSACTION;
+UPDATE Subscriptions SET monthly_fee = 30 WHERE subscription_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Subscriptions TO 'user21'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Subscriptions TO 'subscription_manager';
+
+-- 15. Trigger: Log subscription updates
+DELIMITER //
+CREATE TRIGGER LogSubscriptionUpdate
+AFTER UPDATE ON Subscriptions
+FOR EACH ROW
+BEGIN
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Subscription Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Subscription ID: ', NEW.subscription_id, ' Status changed to ', NEW.status),
+                'Subscriptions', 'Status update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate monthly fee
+DELIMITER //
+CREATE TRIGGER ValidateSubscriptionFee
+BEFORE INSERT ON Subscriptions
+FOR EACH ROW
+BEGIN
+    IF NEW.monthly_fee < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Monthly fee cannot be negative';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log subscription cancellation
+DELIMITER //
+CREATE TRIGGER LogSubscriptionCancellation
+AFTER UPDATE ON Subscriptions
+FOR EACH ROW
+BEGIN
+    IF OLD.status = 'Active' AND NEW.status = 'Cancelled' THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Subscription Cancellation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Subscription ID: ', NEW.subscription_id, ' cancelled'),
+                'Subscriptions', 'Cancellation');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank subscriptions by fee
+SELECT subscription_id, customer_id, monthly_fee,
+       RANK() OVER (PARTITION BY customer_id ORDER BY monthly_fee DESC) AS fee_rank
+FROM Subscriptions;
+
+-- 19. Window Function: Running total of subscriptions
+SELECT subscription_id, customer_id, monthly_fee,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY start_date) AS subscription_count
+FROM Subscriptions;
+
+-- 20. Window Function: Fee percentage by customer
+SELECT subscription_id, customer_id, monthly_fee,
+       monthly_fee / SUM(monthly_fee) OVER (PARTITION BY customer_id) * 100 AS fee_percentage
+FROM Subscriptions;
+
+-- Table 22: GiftCards
+-- 1. View: Active gift cards
+CREATE VIEW ActiveGiftCards AS
+SELECT gift_card_id, customer_id, balance
+FROM GiftCards
+WHERE is_active = TRUE AND expiry_date >= CURDATE();
+
+-- 2. View: Gift cards with customers
+CREATE VIEW GiftCardsWithCustomers AS
+SELECT g.gift_card_id, c.first_name, c.last_name, g.balance
+FROM GiftCards g
+JOIN Customers c ON g.customer_id = c.customer_id;
+
+-- 3. View: High-balance gift cards
+CREATE VIEW HighBalanceGiftCards AS
+SELECT gift_card_id, customer_id, balance
+FROM GiftCards
+WHERE balance > 100;
+
+-- 4. CTE: Total gift card balance by customer
+WITH CustomerGiftCardBalance AS (
+    SELECT customer_id, SUM(balance) AS total_balance
+    FROM GiftCards
+    WHERE is_active = TRUE
+    GROUP BY customer_id
+)
+SELECT c.first_name, c.last_name, cg.total_balance
+FROM CustomerGiftCardBalance cg
+JOIN Customers c ON cg.customer_id = c.customer_id;
+
+-- 5. CTE: Recent gift cards
+WITH RecentGiftCards AS (
+    SELECT gift_card_id, customer_id, issue_date
+    FROM GiftCards
+    WHERE issue_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+)
+SELECT g.gift_card_id, c.first_name, g.issue_date
+FROM RecentGiftCards g
+JOIN Customers c ON g.customer_id = c.customer_id;
+
+-- 6. CTE: Ranked gift cards by balance
+WITH RankedGiftCards AS (
+    SELECT gift_card_id, customer_id, balance,
+           RANK() OVER (PARTITION BY customer_id ORDER BY balance DESC) AS balance_rank
+    FROM GiftCards
+)
+SELECT gift_card_id, customer_id, balance, balance_rank
+FROM RankedGiftCards
+WHERE balance_rank <= 2;
+
+-- 7. Stored Procedure: Update gift card balance
+DELIMITER //
+CREATE PROCEDURE UpdateGiftCardBalance(IN gc_id INT, IN new_balance DECIMAL(10,2))
+BEGIN
+    UPDATE GiftCards SET balance = new_balance WHERE gift_card_id = gc_id;
+END //
+DELIMITER ;
+
+-- 8. Stored Procedure: Deactivate gift card
+DELIMITER //
+CREATE PROCEDURE DeactivateGiftCard(IN gc_id INT)
+BEGIN
+    UPDATE GiftCards SET is_active = FALSE WHERE gift_card_id = gc_id;
+END //
+DELIMITER ;
+
+-- 9. Stored Procedure: Add gift card
+DELIMITER //
+CREATE PROCEDURE AddGiftCard(IN cust_id INT, IN bal DECIMAL(10,2))
+BEGIN
+    INSERT INTO GiftCards (gift_card_id, customer_id, balance, issue_date, is_active, expiry_date)
+    VALUES ((SELECT COALESCE(MAX(gift_card_id), 0) + 1 FROM GiftCards), cust_id, bal, CURDATE(), TRUE, DATE_ADD(CURDATE(), INTERVAL 1 YEAR));
+END //
+DELIMITER ;
+
+-- 10. TCL: Update gift card with rollback
+START TRANSACTION;
+UPDATE GiftCards SET balance = balance - 50 WHERE gift_card_id = 1;
+UPDATE GiftCards SET last_used = NOW() WHERE gift_card_id = 1;
+-- Simulate error
+INSERT INTO GiftCards (gift_card_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit gift card update
+START TRANSACTION;
+UPDATE GiftCards SET is_active = TRUE WHERE gift_card_id = 2;
+SAVEPOINT status_updated;
+UPDATE GiftCards SET expiry_date = DATE_ADD(CURDATE(), INTERVAL 6 MONTH) WHERE gift_card_id = 2;
+COMMIT;
+
+-- 12. TCL: Rollback gift card update
+START TRANSACTION;
+UPDATE GiftCards SET balance = 200 WHERE gift_card_id = 3;
+ROLLBACK;
+
+-- 13. DCL: Grant select permission
+GRANT SELECT ON GiftCards TO 'user22'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON GiftCards TO 'giftcard_manager';
+
+-- 15. Trigger: Log gift card updates
+DELIMITER //
+CREATE TRIGGER LogGiftCardUpdate
+AFTER UPDATE ON GiftCards
+FOR EACH ROW
+BEGIN
+    IF OLD.balance != NEW.balance THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'GiftCard Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('GiftCard ID: ', NEW.gift_card_id, ' Balance changed to ', NEW.balance),
+                'GiftCards', 'Balance update');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate gift card balance
+DELIMITER //
+CREATE TRIGGER ValidateGiftCardBalance
+BEFORE INSERT ON GiftCards
+FOR EACH ROW
+BEGIN
+    IF NEW.balance < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Balance cannot be negative';
+    END IF;
+END;
+// DELIMITER ;
+
+-- 17. Trigger: Log gift card deactivation
+DELIMITER //
+CREATE TRIGGER LogGiftCardDeactivation
+AFTER UPDATE ON GiftCards
+FOR EACH ROW
+BEGIN
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'GiftCard Deactivation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('GiftCard ID: ', NEW.gift_card_id, ' deactivated'),
+                'GiftCards', 'Deactivation');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank gift cards by balance
+SELECT gift_card_id, customer_id, balance,
+       RANK() OVER (PARTITION BY customer_id ORDER BY balance DESC) AS balance_rank
+FROM GiftCards;
+
+-- 19. Window Function: Running total of gift cards
+SELECT gift_card_id, customer_id, balance,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY issue_date) AS gift_card_count
+FROM GiftCards;
+
+-- 20. Window Function: Balance percentage by customer
+SELECT gift_card_id, customer_id, balance,
+       balance / SUM(balance) OVER (PARTITION BY customer_id) * 100 AS balance_percentage
+FROM GiftCards;
+
+-- Table 23: Coupons
+-- 1. View: Active coupons
 CREATE VIEW ActiveCoupons AS
 SELECT coupon_id, coupon_code, discount_amount
 FROM Coupons
-WHERE is_active = TRUE;
+WHERE is_active = TRUE AND expiry_date >= CURDATE();
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of coupons with customer details
-CREATE VIEW CouponCustomerDetails AS
-SELECT cp.coupon_id, cp.coupon_code, c.first_name
+-- 2. View: Coupons with customers
+CREATE VIEW CouponsWithCustomers AS
+SELECT cp.coupon_id, c.first_name, c.last_name, cp.discount_amount
 FROM Coupons cp
 JOIN Customers c ON cp.customer_id = c.customer_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of coupons with high discounts
+-- 3. View: High-discount coupons
 CREATE VIEW HighDiscountCoupons AS
 SELECT coupon_id, coupon_code, discount_amount
 FROM Coupons
-WHERE discount_amount > 50;
+WHERE discount_amount > 25;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent coupons
-CREATE VIEW RecentCoupons AS
-SELECT coupon_id, coupon_code, expiry_date
-FROM Coupons
-WHERE expiry_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count coupons by customer
-WITH CouponCounts AS (
+-- 4. CTE: Coupon usage by customer
+WITH CouponUsage AS (
     SELECT customer_id, COUNT(*) AS coupon_count
     FROM Coupons
     GROUP BY customer_id
 )
-SELECT c.customer_id, c.first_name, cc.coupon_count
-FROM Customers c
-JOIN CouponCounts cc ON c.customer_id = cc.customer_id;
+SELECT c.first_name, c.last_name, cu.coupon_count
+FROM CouponUsage cu
+JOIN Customers c ON cu.customer_id = c.customer_id;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list coupons nearing expiry
-WITH ExpiringCoupons AS (
-    SELECT coupon_id
+-- 5. CTE: Recent coupons
+WITH RecentCoupons AS (
+    SELECT coupon_id, coupon_code, issue_date
     FROM Coupons
-    WHERE expiry_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+    WHERE issue_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT cp.coupon_id, cp.coupon_code
-FROM Coupons cp
-JOIN ExpiringCoupons ec ON cp.coupon_id = ec.coupon_id;
+SELECT cp.coupon_id, c.first_name, cp.issue_date
+FROM RecentCoupons cp
+JOIN Customers c ON cp.customer_id = c.customer_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find active coupons
-WITH ActiveCoupons AS (
-    SELECT coupon_id
+-- 6. CTE: Ranked coupons by discount
+WITH RankedCoupons AS (
+    SELECT coupon_id, customer_id, discount_amount,
+           RANK() OVER (PARTITION BY customer_id ORDER BY discount_amount DESC) AS discount_rank
     FROM Coupons
-    WHERE is_active = TRUE
 )
-SELECT cp.coupon_id, cp.coupon_code
-FROM Coupons cp
-JOIN ActiveCoupons ac ON cp.coupon_id = ac.coupon_id;
+SELECT coupon_id, customer_id, discount_amount, discount_rank
+FROM RankedCoupons
+WHERE discount_rank <= 2;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list coupons used in orders
-WITH CouponOrders AS (
-    SELECT coupon_id
-    FROM Orders
-    WHERE coupon_id IS NOT NULL
-)
-SELECT cp.coupon_id, cp.coupon_code
-FROM Coupons cp
-JOIN CouponOrders co ON cp.coupon_id = co.coupon_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new coupon
+-- 7. Stored Procedure: Update coupon amount
 DELIMITER //
-CREATE PROCEDURE AddCoupon(
-    IN p_coupon_id INT,
-    IN p_coupon_code VARCHAR(20),
-    IN p_discount_amount DECIMAL(10,2),
-    IN p_expiry_date DATE,
-    IN p_is_active BOOLEAN,
-    IN p_customer_id INT
-)
+CREATE PROCEDURE UpdateCouponAmount(IN cp_id INT, IN new_amount DECIMAL(10,2))
 BEGIN
-    INSERT INTO Coupons (coupon_id, coupon_code, discount_amount, expiry_date, is_active, customer_id)
-    VALUES (p_coupon_id, p_coupon_code, p_discount_amount, p_expiry_date, p_is_active, p_customer_id);
+    UPDATE Coupons SET discount_amount = new_amount WHERE coupon_id = cp_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a coupon's discount
+-- 8. Stored Procedure: Deactivate coupon
 DELIMITER //
-CREATE PROCEDURE UpdateCouponDiscount(
-    IN p_coupon_id INT,
-    IN p_new_discount DECIMAL(10,2)
-)
+CREATE PROCEDURE DeactivateCoupon(IN cp_id INT)
 BEGIN
-    UPDATE Coupons
-    SET discount_amount = p_new_discount
-    WHERE coupon_id = p_coupon_id;
+    UPDATE Coupons SET is_active = FALSE WHERE coupon_id = cp_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a coupon
+-- 9. Stored Procedure: Add coupon
 DELIMITER //
-CREATE PROCEDURE DeleteCoupon(
-    IN p_coupon_id INT
-)
+CREATE PROCEDURE AddCoupon(IN cust_id INT, IN code VARCHAR(50), IN amt DECIMAL(10,2))
 BEGIN
-    DELETE FROM Coupons
-    WHERE coupon_id = p_coupon_id;
+    INSERT INTO Coupons (coupon_id, customer_id, coupon_code, discount_amount, issue_date, is_active, expiry_date)
+    VALUES ((SELECT COALESCE(MAX(coupon_id), 0) + 1 FROM Coupons), cust_id, code, amt, CURDATE(), TRUE, DATE_ADD(CURDATE(), INTERVAL 6 MONTH));
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve coupon details
-DELIMITER //
-CREATE PROCEDURE GetCouponDetails(
-    IN p_coupon_id INT
-)
-BEGIN
-    SELECT cp.coupon_id, cp.coupon_code, c.first_name, cp.discount_amount
-    FROM Coupons cp
-    JOIN Customers c ON cp.customer_id = c.customer_id
-    WHERE cp.coupon_id = p_coupon_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new coupon
-INSERT INTO Coupons (coupon_id, coupon_code, discount_amount, expiry_date, is_active, customer_id)
-VALUES (4001, 'SAVE50', 50.00, '2025-12-31', TRUE, 201);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a coupon's expiry date
-UPDATE Coupons
-SET expiry_date = '2026-01-31'
-WHERE coupon_id = 4001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive coupon
-DELETE FROM Coupons
-WHERE coupon_id = 4001 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates coupon active status within a transaction
+-- 10. TCL: Update coupon with rollback
 START TRANSACTION;
-UPDATE Coupons
-SET is_active = FALSE
-WHERE coupon_id = 4001;
+UPDATE Coupons SET discount_amount = 30 WHERE coupon_id = 1;
+UPDATE Coupons SET is_active = TRUE WHERE coupon_id = 1;
+-- Simulate error
+INSERT INTO Coupons (coupon_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit coupon update
+START TRANSACTION;
+UPDATE Coupons SET expiry_date = DATE_ADD(CURDATE(), INTERVAL 3 MONTH) WHERE coupon_id = 2;
+SAVEPOINT expiry_updated;
+UPDATE Coupons SET coupon_code = 'COUPON2025' WHERE coupon_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record coupon insertions
-CREATE TABLE CouponLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    coupon_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogCouponInsert
-AFTER INSERT ON Coupons
-FOR EACH ROW
-BEGIN
-    INSERT INTO CouponLog (coupon_id, action, log_date, user_id)
-    VALUES (NEW.coupon_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
+-- 12. TCL: Rollback coupon update
+START TRANSACTION;
+UPDATE Coupons SET discount_amount = 40 WHERE coupon_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log coupon discount updates
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Coupons TO 'user23'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Coupons TO 'marketing_manager';
+
+-- 15. Trigger: Log coupon updates
 DELIMITER //
-CREATE TRIGGER LogCouponDiscountUpdate
+CREATE TRIGGER LogCouponUpdate
 AFTER UPDATE ON Coupons
 FOR EACH ROW
 BEGIN
     IF OLD.discount_amount != NEW.discount_amount THEN
-        INSERT INTO CouponLog (coupon_id, action, log_date, user_id)
-        VALUES (NEW.coupon_id, CONCAT('DISCOUNT_UPDATE: ', OLD.discount_amount, ' to ', NEW.discount_amount), NOW(), USER());
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Coupon Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Coupon ID: ', NEW.coupon_id, ' Amount changed to ', NEW.discount_amount),
+                'Coupons', 'Amount update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent expired coupons
+-- 16. Trigger: Validate coupon amount
 DELIMITER //
-CREATE TRIGGER PreventExpiredCoupon
+CREATE TRIGGER ValidateCouponAmount
 BEFORE INSERT ON Coupons
 FOR EACH ROW
 BEGIN
-    IF NEW.expiry_date < CURDATE() THEN
+    IF NEW.discount_amount <= 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot add expired coupon';
+        SET MESSAGE_TEXT = 'Discount amount must be positive';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log coupon deletions
+-- 17. Trigger: Log coupon deactivation
 DELIMITER //
-CREATE TRIGGER LogCouponDelete
-AFTER DELETE ON Coupons
+CREATE TRIGGER LogCouponDeactivation
+AFTER UPDATE ON Coupons
 FOR EACH ROW
 BEGIN
-    INSERT INTO CouponLog (coupon_id, action, log_date, user_id)
-    VALUES (OLD.coupon_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 16: Shipping_Methods**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active shipping methods
-CREATE VIEW ActiveShippingMethods AS
-SELECT shipping_method_id, method_name, cost
-FROM Shipping_Methods
-WHERE is_active = TRUE;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of shipping methods with high costs
-CREATE VIEW HighCostShippingMethods AS
-SELECT shipping_method_id, method_name, cost
-FROM Shipping_Methods
-WHERE cost > 20;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of shipping methods used in shipments
-CREATE VIEW UsedShippingMethods AS
-SELECT sm.shipping_method_id, sm.method_name
-FROM Shipping_Methods sm
-JOIN Shipments s ON sm.shipping_method_id = s.shipping_method_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of fast shipping methods
-CREATE VIEW FastShippingMethods AS
-SELECT shipping_method_id, method_name, estimated_days
-FROM Shipping_Methods
-WHERE estimated_days <= 3;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count shipments by shipping method
-WITH ShipmentCounts AS (
-    SELECT shipping_method_id, COUNT(*) AS shipment_count
-    FROM Shipments
-    GROUP BY shipping_method_id
-)
-SELECT sm.shipping_method_id, sm.method_name, sc.shipment_count
-FROM Shipping_Methods sm
-JOIN ShipmentCounts sc ON sm.shipping_method_id = sc.shipping_method_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list high-cost shipping methods
-WITH HighCostMethods AS (
-    SELECT shipping_method_id
-    FROM Shipping_Methods
-    WHERE cost > 20
-)
-SELECT sm.shipping_method_id, sm.method_name
-FROM Shipping_Methods sm
-JOIN HighCostMethods hcm ON sm.shipping_method_id = hcm.shipping_method_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find active shipping methods
-WITH ActiveMethods AS (
-    SELECT shipping_method_id
-    FROM Shipping_Methods
-    WHERE is_active = TRUE
-)
-SELECT sm.shipping_method_id, sm.method_name
-FROM Shipping_Methods sm
-JOIN ActiveMethods am ON sm.shipping_method_id = am.shipping_method_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list recently used shipping methods
-WITH RecentShipments AS (
-    SELECT shipping_method_id
-    FROM Shipments
-    WHERE shipment_date >= '2025-01-01'
-)
-SELECT sm.shipping_method_id, sm.method_name
-FROM Shipping_Methods sm
-JOIN RecentShipments rs ON sm.shipping_method_id = rs.shipping_method_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new shipping method
-DELIMITER //
-CREATE PROCEDURE AddShippingMethod(
-    IN p_shipping_method_id INT,
-    IN p_method_name VARCHAR(100),
-    IN p_cost DECIMAL(10,2),
-    IN p_estimated_days INT,
-    IN p_is_active BOOLEAN
-)
-BEGIN
-    INSERT INTO Shipping_Methods (shipping_method_id, method_name, cost, estimated_days, is_active)
-    VALUES (p_shipping_method_id, p_method_name, p_cost, p_estimated_days, p_is_active);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a shipping method's cost
-DELIMITER //
-CREATE PROCEDURE UpdateShippingMethodCost(
-    IN p_shipping_method_id INT,
-    IN p_new_cost DECIMAL(10,2)
-)
-BEGIN
-    UPDATE Shipping_Methods
-    SET cost = p_new_cost
-    WHERE shipping_method_id = p_shipping_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a shipping method
-DELIMITER //
-CREATE PROCEDURE DeleteShippingMethod(
-    IN p_shipping_method_id INT
-)
-BEGIN
-    DELETE FROM Shipping_Methods
-    WHERE shipping_method_id = p_shipping_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve shipping method details
-DELIMITER //
-CREATE PROCEDURE GetShippingMethodDetails(
-    IN p_shipping_method_id INT
-)
-BEGIN
-    SELECT shipping_method_id, method_name, cost, estimated_days
-    FROM Shipping_Methods
-    WHERE shipping_method_id = p_shipping_method_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new shipping method
-INSERT INTO Shipping_Methods (shipping_method_id, method_name, cost, estimated_days, is_active)
-VALUES (5001, 'Express Shipping', 25.00, 2, TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a shipping method's estimated days
-UPDATE Shipping_Methods
-SET estimated_days = 3
-WHERE shipping_method_id = 5001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive shipping method
-DELETE FROM Shipping_Methods
-WHERE shipping_method_id = 5001 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates shipping method cost within a transaction
-START TRANSACTION;
-UPDATE Shipping_Methods
-SET cost = 30.00
-WHERE shipping_method_id = 5001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record shipping method insertions
-CREATE TABLE ShippingMethodLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    shipping_method_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogShippingMethodInsert
-AFTER INSERT ON Shipping_Methods
-FOR EACH ROW
-BEGIN
-    INSERT INTO ShippingMethodLog (shipping_method_id, action, log_date, user_id)
-    VALUES (NEW.shipping_method_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log shipping method cost updates
-DELIMITER //
-CREATE TRIGGER LogShippingMethodCostUpdate
-AFTER UPDATE ON Shipping_Methods
-FOR EACH ROW
-BEGIN
-    IF OLD.cost != NEW.cost THEN
-        INSERT INTO ShippingMethodLog (shipping_method_id, action, log_date, user_id)
-        VALUES (NEW.shipping_method_id, CONCAT('COST_UPDATE: ', OLD.cost, ' to ', NEW.cost), NOW(), USER());
+    IF OLD.is_active = TRUE AND NEW.is_active = FALSE THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Coupon Deactivation', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Coupon ID: ', NEW.coupon_id, ' deactivated'),
+                'Coupons', 'Deactivation');
     END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative costs
-DELIMITER //
-CREATE TRIGGER PreventNegativeShippingCost
-BEFORE UPDATE ON Shipping_Methods
-FOR EACH ROW
-BEGIN
-    IF NEW.cost < 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Shipping cost cannot be negative';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log shipping method deletions
-DELIMITER //
-CREATE TRIGGER LogShippingMethodDelete
-AFTER DELETE ON Shipping_Methods
-FOR EACH ROW
-BEGIN
-    INSERT INTO ShippingMethodLog (shipping_method_id, action, log_date, user_id)
-    VALUES (OLD.shipping_method_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 17: Shipments**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active shipments
-CREATE VIEW ActiveShipments AS
-SELECT shipment_id, order_id, shipment_date, status
-FROM Shipments
-WHERE status IN ('Shipped', 'In Transit');
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of shipments with order details
-CREATE VIEW ShipmentOrderDetails AS
-SELECT s.shipment_id, o.order_date, c.first_name
-FROM Shipments s
-JOIN Orders o ON s.order_id = o.order_id
-JOIN Customers c ON o.customer_id = c.customer_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of shipments by shipping method
-CREATE VIEW ShipmentsByMethod AS
-SELECT s.shipment_id, sm.method_name
-FROM Shipments s
-JOIN Shipping_Methods sm ON s.shipping_method_id = sm.shipping_method_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent shipments
-CREATE VIEW RecentShipments AS
-SELECT shipment_id, order_id, shipment_date
-FROM Shipments
-WHERE shipment_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count shipments by order
-WITH ShipmentCounts AS (
-    SELECT order_id, COUNT(*) AS shipment_count
-    FROM Shipments
-    GROUP BY order_id
-)
-SELECT o.order_id, o.order_date, sc.shipment_count
-FROM Orders o
-JOIN ShipmentCounts sc ON o.order_id = sc.order_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list shipments with delayed status
-WITH DelayedShipments AS (
-    SELECT shipment_id
-    FROM Shipments
-    WHERE status = 'Delayed'
-)
-SELECT s.shipment_id, s.order_id
-FROM Shipments s
-JOIN DelayedShipments ds ON s.shipment_id = ds.shipment_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find shipments for recent orders
-WITH RecentOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE order_date >= '2025-01-01'
-)
-SELECT s.shipment_id, s.order_id
-FROM Shipments s
-JOIN RecentOrders ro ON s.order_id = ro.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list shipments by customer
-WITH CustomerOrders AS (
-    SELECT order_id, customer_id
-    FROM Orders
-)
-SELECT s.shipment_id, co.customer_id, c.first_name
-FROM Shipments s
-JOIN CustomerOrders co ON s.order_id = co.order_id
-JOIN Customers c ON co.customer_id = c.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new shipment
-DELIMITER //
-CREATE PROCEDURE AddShipment(
-    IN p_shipment_id INT,
-    IN p_order_id INT,
-    IN p_shipping_method_id INT,
-    IN p_shipment_date DATE,
-    IN p_status VARCHAR(50),
-    IN p_tracking_number VARCHAR(50)
-)
-BEGIN
-    INSERT INTO Shipments (shipment_id, order_id, shipping_method_id, shipment_date, status, tracking_number)
-    VALUES (p_shipment_id, p_order_id, p_shipping_method_id, p_shipment_date, p_status, p_tracking_number);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a shipment's status
-DELIMITER //
-CREATE PROCEDURE UpdateShipmentStatus(
-    IN p_shipment_id INT,
-    IN p_new_status VARCHAR(50)
-)
-BEGIN
-    UPDATE Shipments
-    SET status = p_new_status
-    WHERE shipment_id = p_shipment_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a shipment
-DELIMITER //
-CREATE PROCEDURE DeleteShipment(
-    IN p_shipment_id INT
-)
-BEGIN
-    DELETE FROM Shipments
-    WHERE shipment_id = p_shipment_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve shipment details
-DELIMITER //
-CREATE PROCEDURE GetShipmentDetails(
-    IN p_shipment_id INT
-)
-BEGIN
-    SELECT s.shipment_id, o.order_date, sm.method_name, s.status
-    FROM Shipments s
-    JOIN Orders o ON s.order_id = o.order_id
-    JOIN Shipping_Methods sm ON s.shipping_method_id = sm.shipping_method_id
-    WHERE s.shipment_id = p_shipment_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new shipment
-INSERT INTO Shipments (shipment_id, order_id, shipping_method_id, shipment_date, status, tracking_number)
-VALUES (6001, 301, 5001, '2025-06-08', 'Shipped', 'TRK123456');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a shipment's tracking number
-UPDATE Shipments
-SET tracking_number = 'TRK654321'
-WHERE shipment_id = 6001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a cancelled shipment
-DELETE FROM Shipments
-WHERE shipment_id = 6001 AND status = 'Cancelled';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates shipment status within a transaction
-START TRANSACTION;
-UPDATE Shipments
-SET status = 'Delivered'
-WHERE shipment_id = 6001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record shipment insertions
-CREATE TABLE ShipmentLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    shipment_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogShipmentInsert
-AFTER INSERT ON Shipments
-FOR EACH ROW
-BEGIN
-    INSERT INTO ShipmentLog (shipment_id, action, log_date, user_id)
-    VALUES (NEW.shipment_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log shipment status updates
-DELIMITER //
-CREATE TRIGGER LogShipmentStatusUpdate
-AFTER UPDATE ON Shipments
-FOR EACH ROW
-BEGIN
-    IF OLD.status != NEW.status THEN
-        INSERT INTO ShipmentLog (shipment_id, action, log_date, user_id)
-        VALUES (NEW.shipment_id, CONCAT('STATUS_UPDATE: ', OLD.status, ' to ', NEW.status), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid shipment dates
-DELIMITER //
-CREATE TRIGGER PreventInvalidShipmentDate
-BEFORE INSERT ON Shipments
-FOR EACH ROW
-BEGIN
-    IF NEW.shipment_date < (SELECT order_date FROM Orders WHERE order_id = NEW.order_id) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Shipment date cannot be before order date';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log shipment deletions
-DELIMITER //
-CREATE TRIGGER LogShipmentDelete
-AFTER DELETE ON Shipments
-FOR EACH ROW
-BEGIN
-    INSERT INTO ShipmentLog (shipment_id, action, log_date, user_id)
-    VALUES (OLD.shipment_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 18: Warehouses**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of active warehouses
-CREATE VIEW ActiveWarehouses AS
-SELECT warehouse_id, warehouse_name, location
-FROM Warehouses
-WHERE is_active = TRUE;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of warehouses with product counts
-CREATE VIEW WarehouseProductCounts AS
-SELECT w.warehouse_id, w.warehouse_name, COUNT(it.product_id) AS product_count
-FROM Warehouses w
-LEFT JOIN Inventory_Transactions it ON w.warehouse_id = it.warehouse_id
-GROUP BY w.warehouse_id, w.warehouse_name;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of warehouses by location
-CREATE VIEW WarehousesByLocation AS
-SELECT warehouse_id, warehouse_name, location
-FROM Warehouses
-ORDER BY location;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of warehouses with recent transactions
-CREATE VIEW RecentWarehouseTransactions AS
-SELECT w.warehouse_id, w.warehouse_name
-FROM Warehouses w
-JOIN Inventory_Transactions it ON w.warehouse_id = it.warehouse_id
-WHERE it.transaction_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count products by warehouse
-WITH ProductCounts AS (
-    SELECT warehouse_id, COUNT(DISTINCT product_id) AS product_count
-    FROM Inventory_Transactions
-    GROUP BY warehouse_id
-)
-SELECT w.warehouse_id, w.warehouse_name, pc.product_count
-FROM Warehouses w
-JOIN ProductCounts pc ON w.warehouse_id = pc.warehouse_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list active warehouses
-WITH ActiveWarehouses AS (
-    SELECT warehouse_id
-    FROM Warehouses
-    WHERE is_active = TRUE
-)
-SELECT w.warehouse_id, w.warehouse_name
-FROM Warehouses w
-JOIN ActiveWarehouses aw ON w.warehouse_id = aw.warehouse_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find warehouses with low stock
-WITH LowStockTransactions AS (
-    SELECT warehouse_id
-    FROM Inventory_Transactions
-    WHERE quantity < 50
-)
-SELECT w.warehouse_id, w.warehouse_name
-FROM Warehouses w
-JOIN LowStockTransactions lst ON w.warehouse_id = lst.warehouse_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list warehouses with recent shipments
-WITH RecentShipments AS (
-    SELECT warehouse_id
-    FROM Inventory_Transactions
-    WHERE transaction_date >= '2025-01-01'
-)
-SELECT w.warehouse_id, w.warehouse_name
-FROM Warehouses w
-JOIN RecentShipments rs ON w.warehouse_id = rs.warehouse_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new warehouse
-DELIMITER //
-CREATE PROCEDURE AddWarehouse(
-    IN p_warehouse_id INT,
-    IN p_warehouse_name VARCHAR(100),
-    IN p_location VARCHAR(100),
-    IN p_is_active BOOLEAN
-)
-BEGIN
-    INSERT INTO Warehouses (warehouse_id, warehouse_name, location, is_active)
-    VALUES (p_warehouse_id, p_warehouse_name, p_location, p_is_active);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a warehouse's location
-DELIMITER //
-CREATE PROCEDURE UpdateWarehouseLocation(
-    IN p_warehouse_id INT,
-    IN p_new_location VARCHAR(100)
-)
-BEGIN
-    UPDATE Warehouses
-    SET location = p_new_location
-    WHERE warehouse_id = p_warehouse_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a warehouse
-DELIMITER //
-CREATE PROCEDURE DeleteWarehouse(
-    IN p_warehouse_id INT
-)
-BEGIN
-    DELETE FROM Warehouses
-    WHERE warehouse_id = p_warehouse_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve warehouse details
-DELIMITER //
-CREATE PROCEDURE GetWarehouseDetails(
-    IN p_warehouse_id INT
-)
-BEGIN
-    SELECT warehouse_id, warehouse_name, location
-    FROM Warehouses
-    WHERE warehouse_id = p_warehouse_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new warehouse
-INSERT INTO Warehouses (warehouse_id, warehouse_name, location, is_active)
-VALUES (7001, 'Main Warehouse', 'Los Angeles, CA', TRUE);
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a warehouse's name
-UPDATE Warehouses
-SET warehouse_name = 'Central Warehouse'
-WHERE warehouse_id = 7001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inactive warehouse
-DELETE FROM Warehouses
-WHERE warehouse_id = 7001 AND is_active = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates warehouse active status within a transaction
-START TRANSACTION;
-UPDATE Warehouses
-SET is_active = FALSE
-WHERE warehouse_id = 7001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record warehouse insertions
-CREATE TABLE WarehouseLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    warehouse_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogWarehouseInsert
-AFTER INSERT ON Warehouses
-FOR EACH ROW
-BEGIN
-    INSERT INTO WarehouseLog (warehouse_id, action, log_date, user_id)
-    VALUES (NEW.warehouse_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log warehouse name updates
-DELIMITER //
-CREATE TRIGGER LogWarehouseNameUpdate
-AFTER UPDATE ON Warehouses
-FOR EACH ROW
-BEGIN
-    IF OLD.warehouse_name != NEW.warehouse_name THEN
-        INSERT INTO WarehouseLog (warehouse_id, action, log_date, user_id)
-        VALUES (NEW.warehouse_id, CONCAT('NAME_UPDATE: ', OLD.warehouse_name, ' to ', NEW.warehouse_name), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent deletion of active warehouses
-DELIMITER //
-CREATE TRIGGER PreventActiveWarehouseDelete
-BEFORE DELETE ON Warehouses
-FOR EACH ROW
-BEGIN
-    IF OLD.is_active = TRUE THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot delete active warehouse';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log warehouse deletions
-DELIMITER //
-CREATE TRIGGER LogWarehouseDelete
-AFTER DELETE ON Warehouses
-FOR EACH ROW
-BEGIN
-    INSERT INTO WarehouseLog (warehouse_id, action, log_date, user_id)
-    VALUES (OLD.warehouse_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 19: Inventory_Transactions**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of recent inventory transactions
-CREATE VIEW RecentInventoryTransactions AS
-SELECT transaction_id, product_id, warehouse_id, transaction_date
-FROM Inventory_Transactions
-WHERE transaction_date >= '2025-01-01';
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of inventory transactions by product
-CREATE VIEW InventoryTransactionsByProduct AS
-SELECT it.transaction_id, p.product_name, it.quantity
-FROM Inventory_Transactions it
-JOIN Products p ON it.product_id = p.product_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of inventory transactions by warehouse
-CREATE VIEW InventoryTransactionsByWarehouse AS
-SELECT it.transaction_id, w.warehouse_name, it.quantity
-FROM Inventory_Transactions it
-JOIN Warehouses w ON it.warehouse_id = w.warehouse_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of large inventory transactions
-CREATE VIEW LargeInventoryTransactions AS
-SELECT transaction_id, product_id, quantity
-FROM Inventory_Transactions
-WHERE quantity > 100;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count transactions by product
-WITH TransactionCounts AS (
-    SELECT product_id, COUNT(*) AS transaction_count
-    FROM Inventory_Transactions
-    GROUP BY product_id
-)
-SELECT p.product_id, p.product_name, tc.transaction_count
-FROM Products p
-JOIN TransactionCounts tc ON p.product_id = tc.product_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list transactions by type
-WITH TransactionTypes AS (
-    SELECT transaction_type, COUNT(*) AS type_count
-    FROM Inventory_Transactions
-    GROUP BY transaction_type
-)
-SELECT transaction_type, type_count
-FROM TransactionTypes;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find recent transactions
-WITH RecentTransactions AS (
-    SELECT transaction_id
-    FROM Inventory_Transactions
-    WHERE transaction_date >= '2025-01-01'
-)
-SELECT it.transaction_id, it.product_id
-FROM Inventory_Transactions it
-JOIN RecentTransactions rt ON it.transaction_id = rt.transaction_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list transactions for low stock products
-WITH LowStockProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE stock_quantity < 50
-)
-SELECT it.transaction_id, it.product_id
-FROM Inventory_Transactions it
-JOIN LowStockProducts lsp ON it.product_id = lsp.product_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new inventory transaction
-DELIMITER //
-CREATE PROCEDURE AddInventoryTransaction(
-    IN p_transaction_id INT,
-    IN p_product_id INT,
-    IN p_warehouse_id INT,
-    IN p_quantity INT,
-    IN p_transaction_date DATETIME,
-    IN p_transaction_type VARCHAR(50)
-)
-BEGIN
-    INSERT INTO Inventory_Transactions (transaction_id, product_id, warehouse_id, quantity, transaction_date, transaction_type)
-    VALUES (p_transaction_id, p_product_id, p_warehouse_id, p_quantity, p_transaction_date, p_transaction_type);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update an inventory transaction's quantity
-DELIMITER //
-CREATE PROCEDURE UpdateInventoryTransactionQuantity(
-    IN p_transaction_id INT,
-    IN p_new_quantity INT
-)
-BEGIN
-    UPDATE Inventory_Transactions
-    SET quantity = p_new_quantity
-    WHERE transaction_id = p_transaction_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete an inventory transaction
-DELIMITER //
-CREATE PROCEDURE DeleteInventoryTransaction(
-    IN p_transaction_id INT
-)
-BEGIN
-    DELETE FROM Inventory_Transactions
-    WHERE transaction_id = p_transaction_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve inventory transaction details
-DELIMITER //
-CREATE PROCEDURE GetInventoryTransactionDetails(
-    IN p_transaction_id INT
-)
-BEGIN
-    SELECT it.transaction_id, p.product_name, w.warehouse_name, it.quantity
-    FROM Inventory_Transactions it
-    JOIN Products p ON it.product_id = p.product_id
-    JOIN Warehouses w ON it.warehouse_id = w.warehouse_id
-    WHERE it.transaction_id = p_transaction_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new inventory transaction
-INSERT INTO Inventory_Transactions (transaction_id, product_id, warehouse_id, quantity, transaction_date, transaction_type)
-VALUES (8001, 21, 7001, 100, '2025-06-07 14:00:00', 'Restock');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates an inventory transaction's quantity
-UPDATE Inventory_Transactions
-SET quantity = 150
-WHERE transaction_id = 8001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an inventory transaction
-DELETE FROM Inventory_Transactions
-WHERE transaction_id = 8001;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates inventory transaction quantity within a transaction
-START TRANSACTION;
-UPDATE Inventory_Transactions
-SET quantity = quantity + 50
-WHERE transaction_id = 8001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record inventory transaction insertions
-CREATE TABLE InventoryTransactionLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    transaction_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogInventoryTransactionInsert
-AFTER INSERT ON Inventory_Transactions
-FOR EACH ROW
-BEGIN
-    INSERT INTO InventoryTransactionLog (transaction_id, action, log_date, user_id)
-    VALUES (NEW.transaction_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log inventory transaction quantity updates
-DELIMITER //
-CREATE TRIGGER LogInventoryTransactionQuantityUpdate
-AFTER UPDATE ON Inventory_Transactions
-FOR EACH ROW
-BEGIN
-    IF OLD.quantity != NEW.quantity THEN
-        INSERT INTO InventoryTransactionLog (transaction_id, action, log_date, user_id)
-        VALUES (NEW.transaction_id, CONCAT('QUANTITY_UPDATE: ', OLD.quantity, ' to ', NEW.quantity), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative quantities
-DELIMITER //
-CREATE TRIGGER PreventNegativeInventoryQuantity
-BEFORE UPDATE ON Inventory_Transactions
-FOR EACH ROW
-BEGIN
-    IF NEW.quantity < 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Inventory transaction quantity cannot be negative';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log inventory transaction deletions
-DELIMITER //
-CREATE TRIGGER LogInventoryTransactionDelete
-AFTER DELETE ON Inventory_Transactions
-FOR EACH ROW
-BEGIN
-    INSERT INTO InventoryTransactionLog (transaction_id, action, log_date, user_id)
-    VALUES (OLD.transaction_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 20: Customer_Support_Tickets**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of open customer support tickets
-CREATE VIEW OpenSupportTickets AS
-SELECT ticket_id, customer_id, status
-FROM Customer_Support_Tickets
-WHERE status = 'Open';
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of tickets with customer details
-CREATE VIEW SupportTicketCustomerDetails AS
-SELECT cst.ticket_id, c.first_name, cst.issue_description
-FROM Customer_Support_Tickets cst
-JOIN Customers c ON cst.customer_id = c.customer_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of tickets by order
-CREATE VIEW SupportTicketsByOrder AS
-SELECT cst.ticket_id, o.order_date
-FROM Customer_Support_Tickets cst
-JOIN Orders o ON cst.order_id = o.order_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent support tickets
-CREATE VIEW RecentSupportTickets AS
-SELECT ticket_id, customer_id, created_date
-FROM Customer_Support_Tickets
-WHERE created_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count tickets by customer
-WITH TicketCounts AS (
-    SELECT customer_id, COUNT(*) AS ticket_count
-    FROM Customer_Support_Tickets
-    GROUP BY customer_id
-)
-SELECT c.customer_id, c.first_name, tc.ticket_count
-FROM Customers c
-JOIN TicketCounts tc ON c.customer_id = tc.customer_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list open tickets
-WITH OpenTickets AS (
-    SELECT ticket_id
-    FROM Customer_Support_Tickets
-    WHERE status = 'Open'
-)
-SELECT cst.ticket_id, cst.customer_id
-FROM Customer_Support_Tickets cst
-JOIN OpenTickets ot ON cst.ticket_id = ot.ticket_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find tickets for recent orders
-WITH RecentOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE order_date >= '2025-01-01'
-)
-SELECT cst.ticket_id, cst.order_id
-FROM Customer_Support_Tickets cst
-JOIN RecentOrders ro ON cst.order_id = ro.order_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list tickets by status
-WITH TicketStatus AS (
-    SELECT status, COUNT(*) AS ticket_count
-    FROM Customer_Support_Tickets
-    GROUP BY status
-)
-SELECT status, ticket_count
-FROM TicketStatus;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new support ticket
-DELIMITER //
-CREATE PROCEDURE AddSupportTicket(
-    IN p_ticket_id INT,
-    IN p_customer_id INT,
-    IN p_order_id INT,
-    IN p_issue_description TEXT,
-    IN p_status VARCHAR(50),
-    IN p_created_date DATETIME
-)
-BEGIN
-    INSERT INTO Customer_Support_Tickets (ticket_id, customer_id, order_id, issue_description, status, created_date)
-    VALUES (p_ticket_id, p_customer_id, p_order_id, p_issue_description, p_status, p_created_date);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a ticket's status
-DELIMITER //
-CREATE PROCEDURE UpdateSupportTicketStatus(
-    IN p_ticket_id INT,
-    IN p_new_status VARCHAR(50)
-)
-BEGIN
-    UPDATE Customer_Support_Tickets
-    SET status = p_new_status
-    WHERE ticket_id = p_ticket_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a support ticket
-DELIMITER //
-CREATE PROCEDURE DeleteSupportTicket(
-    IN p_ticket_id INT
-)
-BEGIN
-    DELETE FROM Customer_Support_Tickets
-    WHERE ticket_id = p_ticket_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve support ticket details
-DELIMITER //
-CREATE PROCEDURE GetSupportTicketDetails(
-    IN p_ticket_id INT
-)
-BEGIN
-    SELECT cst.ticket_id, c.first_name, o.order_date, cst.status
-    FROM Customer_Support_Tickets cst
-    JOIN Customers c ON cst.customer_id = c.customer_id
-    JOIN Orders o ON cst.order_id = o.order_id
-    WHERE cst.ticket_id = p_ticket_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new support ticket
-INSERT INTO Customer_Support_Tickets (ticket_id, customer_id, order_id, issue_description, status, created_date)
-VALUES (9001, 201, 301, 'Order not delivered', 'Open', '2025-06-07 15:00:00');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a support ticket's status
-UPDATE Customer_Support_Tickets
-SET status = 'Resolved'
-WHERE ticket_id = 9001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a closed support ticket
-DELETE FROM Customer_Support_Tickets
-WHERE ticket_id = 9001 AND status = 'Closed';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates support ticket status within a transaction
-START TRANSACTION;
-UPDATE Customer_Support_Tickets
-SET status = 'In Progress'
-WHERE ticket_id = 9001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record support ticket insertions
-CREATE TABLE SupportTicketLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    ticket_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogSupportTicketInsert
-AFTER INSERT ON Customer_Support_Tickets
-FOR EACH ROW
-BEGIN
-    INSERT INTO SupportTicketLog (ticket_id, action, log_date, user_id)
-    VALUES (NEW.ticket_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log support ticket status updates
-DELIMITER //
-CREATE TRIGGER LogSupportTicketStatusUpdate
-AFTER UPDATE ON Customer_Support_Tickets
-FOR EACH ROW
-BEGIN
-    IF OLD.status != NEW.status THEN
-        INSERT INTO SupportTicketLog (ticket_id, action, log_date, user_id)
-        VALUES (NEW.ticket_id, CONCAT('STATUS_UPDATE: ', OLD.status, ' to ', NEW.status), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid ticket statuses
-DELIMITER //
-CREATE TRIGGER PreventInvalidTicketStatus
-BEFORE UPDATE ON Customer_Support_Tickets
-FOR EACH ROW
-BEGIN
-    IF NEW.status NOT IN ('Open', 'In Progress', 'Resolved', 'Closed') THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Invalid ticket status';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log support ticket deletions
-DELIMITER //
-CREATE TRIGGER LogSupportTicketDelete
-AFTER DELETE ON Customer_Support_Tickets
-FOR EACH ROW
-BEGIN
-    INSERT INTO SupportTicketLog (ticket_id, action, log_date, user_id)
-    VALUES (OLD.ticket_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 21: Refunds**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of approved refunds
-CREATE VIEW ApprovedRefunds AS
-SELECT refund_id, order_id, amount
-FROM Refunds
+END;
+// DELIITER ;
+
+-- 18. Window Function: Rank coupons by discount
+SELECT coupon_id, customer_id, discount_amount,
+       RANK() OVER (PARTITION BY customer_id ORDER BY discount_amount DESC) AS discount_rank
+FROM Coupons;
+
+-- 19. Window Function: Running total of coupons
+SELECT coupon_id, customer_id, discount_amount,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY issue_date) AS coupon_count
+FROM Coupons;
+
+-- 20. Window Function: Discount percentage by customer
+SELECT coupon_id, customer_id, discount_amount,
+       discount_amount / SUM(discount_amount) OVER (PARTITION BY customer_id) * 100 AS discount_percentage
+FROM Coupons;
+
+-- Table 24: Feedback
+-- 1. View: Approved feedback
+CREATE VIEW ApprovedFeedback AS
+SELECT feedback_id, customer_id, rating, comment
+FROM Feedback
 WHERE status = 'Approved';
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of refunds with order details
-CREATE VIEW RefundOrderDetails AS
-SELECT r.refund_id, o.order_date, c.first_name
-FROM Refunds r
-JOIN Orders o ON r.order_id = o.order_id
-JOIN Customers c ON o.customer_id = c.customer_id;
+-- 2. View: Feedback with customers
+CREATE VIEW FeedbackWithCustomers AS
+SELECT f.feedback_id, c.first_name, c.last_name, f.rating
+FROM Feedback f
+JOIN Customers c ON f.customer_id = c.customer_id;
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of refunds by amount
-CREATE VIEW HighAmountRefunds AS
-SELECT refund_id, order_id, amount
-FROM Refunds
-WHERE amount > 100;
+-- 3. View: High-rated feedback
+CREATE VIEW HighRatedFeedback AS
+SELECT feedback_id, customer_id, rating
+FROM Feedback
+WHERE rating >= 4;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of recent refunds
-CREATE VIEW RecentRefunds AS
-SELECT refund_id, order_id, refund_date
-FROM Refunds
-WHERE refund_date >= '2025-01-01';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count refunds by order
-WITH RefundCounts AS (
-    SELECT order_id, COUNT(*) AS refund_count
-    FROM Refunds
-    GROUP BY order_id
+-- 4. CTE: Average rating by feedback type
+WITH FeedbackAvgRating AS (
+    SELECT feedback_type, AVG(rating) AS avg_rating
+    FROM Feedback
+    GROUP BY feedback_type
 )
-SELECT o.order_id, o.order_date, rc.refund_count
-FROM Orders o
-JOIN RefundCounts rc ON o.order_id = rc.order_id;
+SELECT f.feedback_type, f.avg_rating
+FROM FeedbackAvgRating f
+WHERE f.avg_rating > 3;
 
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list pending refunds
-WITH PendingRefunds AS (
-    SELECT refund_id
-    FROM Refunds
-    WHERE status = 'Pending'
+-- 5. CTE: Recent feedback
+WITH RecentFeedback AS (
+    SELECT feedback_id, customer_id, submission_date
+    FROM Feedback
+    WHERE submission_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
 )
-SELECT r.refund_id, r.order_id
-FROM Refunds r
-JOIN PendingRefunds pr ON r.refund_id = pr.refund_id;
+SELECT f.feedback_id, c.first_name, f.submission_date
+FROM RecentFeedback f
+JOIN Customers c ON f.customer_id = c.customer_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find refunds for recent orders
-WITH RecentOrders AS (
-    SELECT order_id
-    FROM Orders
-    WHERE order_date >= '2025-01-01'
+-- 6. CTE: Ranked feedback by rating
+WITH RankedFeedback AS (
+    SELECT feedback_id, customer_id, rating,
+           RANK() OVER (PARTITION BY customer_id ORDER BY rating DESC) AS rating_rank
+    FROM Feedback
 )
-SELECT r.refund_id, r.order_id
-FROM Refunds r
-JOIN RecentOrders ro ON r.order_id = ro.order_id;
+SELECT feedback_id, customer_id, rating, rating_rank
+FROM RankedFeedback
+WHERE rating_rank <= 2;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list refunds by customer
-WITH CustomerRefunds AS (
-    SELECT r.refund_id, o.customer_id
-    FROM Refunds r
-    JOIN Orders o ON r.order_id = o.order_id
-)
-SELECT cr.refund_id, c.first_name
-FROM CustomerRefunds cr
-JOIN Customers c ON cr.customer_id = c.customer_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new refund
+-- 7. Stored Procedure: Approve feedback
 DELIMITER //
-CREATE PROCEDURE AddRefund(
-    IN p_refund_id INT,
-    IN p_order_id INT,
-    IN p_payment_id INT,
-    IN p_amount DECIMAL(10,2),
-    IN p_refund_date DATE,
-    IN p_status VARCHAR(50)
-)
+CREATE PROCEDURE ApproveFeedback(IN fb_id INT)
 BEGIN
-    INSERT INTO Refunds (refund_id, order_id, payment_id, amount, refund_date, status)
-    VALUES (p_refund_id, p_order_id, p_payment_id, p_amount, p_refund_date, p_status);
+    UPDATE Feedback SET status = 'Approved' WHERE feedback_id = fb_id;
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a refund's status
+-- 8. Stored Procedure: Get customer feedback
 DELIMITER //
-CREATE PROCEDURE UpdateRefundStatus(
-    IN p_refund_id INT,
-    IN p_new_status VARCHAR(50)
-)
+CREATE PROCEDURE GetCustomerFeedback(IN cust_id INT)
 BEGIN
-    UPDATE Refunds
-    SET status = p_new_status
-    WHERE refund_id = p_refund_id;
+    SELECT feedback_id, rating, comment, submission_date
+    FROM Feedback
+    WHERE customer_id = cust_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a refund
+-- 9. Stored Procedure: Add feedback
 DELIMITER //
-CREATE PROCEDURE DeleteRefund(
-    IN p_refund_id INT
-)
+CREATE PROCEDURE AddFeedback(IN cust_id INT, IN rate INT, IN comm TEXT)
 BEGIN
-    DELETE FROM Refunds
-    WHERE refund_id = p_refund_id;
+    INSERT INTO Feedback (feedback_id, customer_id, rating, comment, submission_date, status)
+    VALUES ((SELECT COALESCE(MAX(feedback_id), 0) + 1 FROM Feedback), cust_id, rate, comm, CURDATE(), 'Pending');
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve refund details
-DELIMITER //
-CREATE PROCEDURE GetRefundDetails(
-    IN p_refund_id INT
-)
-BEGIN
-    SELECT r.refund_id, o.order_date, p.payment_date, r.amount, r.status
-    FROM Refunds r
-    JOIN Orders o ON r.order_id = o.order_id
-    JOIN Payments p ON r.payment_id = p.payment_id
-    WHERE r.refund_id = p_refund_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new refund
-INSERT INTO Refunds (refund_id, order_id, payment_id, amount, refund_date, status)
-VALUES (10001, 301, 601, 150.00, '2025-06-08', 'Pending');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a refund's amount
-UPDATE Refunds
-SET amount = 200.00
-WHERE refund_id = 10001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a denied refund
-DELETE FROM Refunds
-WHERE refund_id = 10001 AND status = 'Denied';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates refund status within a transaction
+-- 10. TCL: Update feedback with rollback
 START TRANSACTION;
-UPDATE Refunds
-SET status = 'Approved'
-WHERE refund_id = 10001;
+UPDATE Feedback SET rating = 5 WHERE feedback_id = 1;
+UPDATE Feedback SET status = 'Approved' WHERE feedback_id = 1;
+-- Simulate error
+INSERT INTO Feedback (feedback_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit feedback update
+START TRANSACTION;
+UPDATE Feedback SET comment = 'Updated comment' WHERE feedback_id = 2;
+SAVEPOINT comment_updated;
+UPDATE Feedback SET submission_date = CURDATE() WHERE feedback_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record refund insertions
-CREATE TABLE RefundLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    refund_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogRefundInsert
-AFTER INSERT ON Refunds
-FOR EACH ROW
-BEGIN
-    INSERT INTO RefundLog (refund_id, action, log_date, user_id)
-    VALUES (NEW.refund_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log refund status updates
-DELIMITER //
-CREATE TRIGGER LogRefundStatusUpdate
-AFTER UPDATE ON Refunds
-FOR EACH ROW
-BEGIN
-    IF OLD.status != NEW.status THEN
-        INSERT INTO RefundLog (refund_id, action, log_date, user_id)
-        VALUES (NEW.refund_id, CONCAT('STATUS_UPDATE: ', OLD.status, ' to ', NEW.status), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent negative refund amounts
-DELIMITER //
-CREATE TRIGGER PreventNegativeRefundAmount
-BEFORE INSERT ON Refunds
-FOR EACH ROW
-BEGIN
-    IF NEW.amount < 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Refund amount cannot be negative';
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log refund deletions
-DELIMITER //
-CREATE TRIGGER LogRefundDelete
-AFTER DELETE ON Refunds
-FOR EACH ROW
-BEGIN
-    INSERT INTO RefundLog (refund_id, action, log_date, user_id)
-    VALUES (OLD.refund_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 22: Product_Images**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of primary product images
-CREATE VIEW PrimaryProductImages AS
-SELECT image_id, product_id, image_url
-FROM Product_Images
-WHERE is_primary = TRUE;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of product images with product details
-CREATE VIEW ProductImageDetails AS
-SELECT pi.image_id, p.product_name, pi.image_url
-FROM Product_Images pi
-JOIN Products p ON pi.product_id = p.product_id;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of recent product images
-CREATE VIEW RecentProductImages AS
-SELECT image_id, product_id, uploaded_date
-FROM Product_Images
-WHERE uploaded_date >= '2025-01-01';
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of product images with categories
-CREATE VIEW ProductImageCategories AS
-SELECT pi.image_id, p.product_id, c.category_name
-FROM Product_Images pi
-JOIN Products p ON pi.product_id = p.product_id
-JOIN Categories c ON p.category_id = c.category_id;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count images by product
-WITH ImageCounts AS (
-    SELECT product_id, COUNT(*) AS image_count
-    FROM Product_Images
-    GROUP BY product_id
-)
-SELECT p.product_id, p.product_name, ic.image_count
-FROM Products p
-JOIN ImageCounts ic ON p.product_id = ic.product_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list primary images
-WITH PrimaryImages AS (
-    SELECT image_id
-    FROM Product_Images
-    WHERE is_primary = TRUE
-)
-SELECT pi.image_id, pi.product_id
-FROM Product_Images pi
-JOIN PrimaryImages pri ON pi.image_id = pri.image_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find images for recent products
-WITH RecentProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE created_date >= '2025-01-01'
-)
-SELECT pi.image_id, pi.product_id
-FROM Product_Images pi
-JOIN RecentProducts rp ON pi.product_id = rp.product_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list images for active products
-WITH ActiveProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE is_active = TRUE
-)
-SELECT pi.image_id, pi.product_id
-FROM Product_Images pi
-JOIN ActiveProducts ap ON pi.product_id = ap.product_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new product image
-DELIMITER //
-CREATE PROCEDURE AddProductImage(
-    IN p_image_id INT,
-    IN p_product_id INT,
-    IN p_image_url VARCHAR(255),
-    IN p_is_primary BOOLEAN,
-    IN p_uploaded_date DATETIME
-)
-BEGIN
-    INSERT INTO Product_Images (image_id, product_id, image_url, is_primary, uploaded_date)
-    VALUES (p_image_id, p_product_id, p_image_url, p_is_primary, p_uploaded_date);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a product image's primary status
-DELIMITER //
-CREATE PROCEDURE UpdateProductImagePrimary(
-    IN p_image_id INT,
-    IN p_is_primary BOOLEAN
-)
-BEGIN
-    UPDATE Product_Images
-    SET is_primary = p_is_primary
-    WHERE image_id = p_image_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a product image
-DELIMITER //
-CREATE PROCEDURE DeleteProductImage(
-    IN p_image_id INT
-)
-BEGIN
-    DELETE FROM Product_Images
-    WHERE image_id = p_image_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve product image details
-DELIMITER //
-CREATE PROCEDURE GetProductImageDetails(
-    IN p_image_id INT
-)
-BEGIN
-    SELECT pi.image_id, p.product_name, pi.image_url, pi.is_primary
-    FROM Product_Images pi
-    JOIN Products p ON pi.product_id = p.product_id
-    WHERE pi.image_id = p_image_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new product image
-INSERT INTO Product_Images (image_id, product_id, image_url, is_primary, uploaded_date)
-VALUES (11001, 21, 'https://example.com/product21.jpg', TRUE, '2025-06-07 16:00:00');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a product image's primary status
-UPDATE Product_Images
-SET is_primary = FALSE
-WHERE image_id = 11001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a non-primary product image
-DELETE FROM Product_Images
-WHERE image_id = 11001 AND is_primary = FALSE;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates product image primary status within a transaction
+-- 12. TCL: Rollback feedback update
 START TRANSACTION;
-UPDATE Product_Images
-SET is_primary = TRUE
-WHERE image_id = 11001;
-COMMIT;
+UPDATE Feedback SET rating = 3 WHERE feedback_id = 3;
+ROLLBACK;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record product image insertions
-CREATE TABLE ProductImageLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    image_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Feedback TO 'user24'@'localhost';
+
+-- 14. DCL: Grant update permission
+GRANT UPDATE ON Feedback TO 'feedback_manager';
+
+-- 15. Trigger: Log feedback updates
 DELIMITER //
-CREATE TRIGGER LogProductImageInsert
-AFTER INSERT ON Product_Images
+CREATE TRIGGER LogFeedbackUpdate
+AFTER UPDATE ON Feedback
 FOR EACH ROW
 BEGIN
-    INSERT INTO ProductImageLog (image_id, action, log_date, user_id)
-    VALUES (NEW.image_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log product image primary status updates
-DELIMITER //
-CREATE TRIGGER LogProductImagePrimaryUpdate
-AFTER UPDATE ON Product_Images
-FOR EACH ROW
-BEGIN
-    IF OLD.is_primary != NEW.is_primary THEN
-        INSERT INTO ProductImageLog (image_id, action, log_date, user_id)
-        VALUES (NEW.image_id, CONCAT('PRIMARY_UPDATE: ', OLD.is_primary, ' to ', NEW.is_primary), NOW(), USER());
+    IF OLD.rating != NEW.rating THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Feedback Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Feedback ID: ', NEW.feedback_id, ' Rating changed to ', NEW.rating),
+                'Feedback', 'Rating update');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent multiple primary images per product
+-- 16. Trigger: Validate feedback rating
 DELIMITER //
-CREATE TRIGGER PreventMultiplePrimaryImages
-BEFORE INSERT ON Product_Images
+CREATE TRIGGER ValidateFeedbackRating
+BEFORE INSERT ON Feedback
 FOR EACH ROW
 BEGIN
-    IF NEW.is_primary = TRUE AND EXISTS (
-        SELECT 1 FROM Product_Images
-        WHERE product_id = NEW.product_id AND is_primary = TRUE
-    ) THEN
+    IF NEW.rating < 1 OR NEW.rating > 5 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Product already has a primary image';
+        SET MESSAGE_TEXT = 'Rating must be between 1 and 5';
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log product image deletions
+-- 17. Trigger: Log feedback approval
 DELIMITER //
-CREATE TRIGGER LogProductImageDelete
-AFTER DELETE ON Product_Images
+CREATE TRIGGER LogFeedbackApproval
+AFTER UPDATE ON Feedback
 FOR EACH ROW
 BEGIN
-    INSERT INTO ProductImageLog (image_id, action, log_date, user_id)
-    VALUES (OLD.image_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 23: Product_Tags**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of product tags by product
-CREATE VIEW ProductTagsByProduct AS
-SELECT tag_id, product_id, tag_name
-FROM Product_Tags
-ORDER BY product_id;
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of popular tags
-CREATE VIEW PopularProductTags AS
-SELECT tag_name, COUNT(*) AS tag_count
-FROM Product_Tags
-GROUP BY tag_name
-HAVING tag_count > 5;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of recent product tags
-CREATE VIEW RecentProductTags AS
-SELECT tag_id, product_id, created_date
-FROM Product_Tags
-WHERE created_date >= '2025-01-01';
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of product tags with categories
-CREATE VIEW ProductTagCategories AS
-SELECT pt.tag_id, p.product_id, c.category_name
-FROM Product_Tags pt
-JOIN Products p ON pt.product_id = p.product_id
-JOIN Categories c ON p.category_id = c.category_id;
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count tags by product
-WITH TagCounts AS (
-    SELECT product_id, COUNT(*) AS tag_count
-    FROM Product_Tags
-    GROUP BY product_id
-)
-SELECT p.product_id, p.product_name, tc.tag_count
-FROM Products p
-JOIN TagCounts tc ON p.product_id = tc.product_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list tags for active products
-WITH ActiveProducts AS (
-    SELECT product_id
-    FROM Products
-    WHERE is_active = TRUE
-)
-SELECT pt.tag_id, pt.tag_name
-FROM Product_Tags pt
-JOIN ActiveProducts ap ON pt.product_id = ap.product_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find tags for high-rated products
-WITH HighRatedProducts AS (
-    SELECT product_id
-    FROM Reviews
-    GROUP BY product_id
-    HAVING AVG(rating) >= 4
-)
-SELECT pt.tag_id, pt.tag_name
-FROM Product_Tags pt
-JOIN HighRatedProducts hrp ON pt.product_id = hrp.product_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list recent tags
-WITH RecentTags AS (
-    SELECT tag_id
-    FROM Product_Tags
-    WHERE created_date >= '2025-01-01'
-)
-SELECT pt.tag_id, pt.tag_name
-FROM Product_Tags pt
-JOIN RecentTags rt ON pt.tag_id = rt.tag_id;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new product tag
-DELIMITER //
-CREATE PROCEDURE AddProductTag(
-    IN p_tag_id INT,
-    IN p_product_id INT,
-    IN p_tag_name VARCHAR(50),
-    IN p_created_date DATETIME
-)
-BEGIN
-    INSERT INTO Product_Tags (tag_id, product_id, tag_name, created_date)
-    VALUES (p_tag_id, p_product_id, p_tag_name, p_created_date);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a product tag's name
-DELIMITER //
-CREATE PROCEDURE UpdateProductTagName(
-    IN p_tag_id INT,
-    IN p_new_tag_name VARCHAR(50)
-)
-BEGIN
-    UPDATE Product_Tags
-    SET tag_name = p_new_tag_name
-    WHERE tag_id = p_tag_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a product tag
-DELIMITER //
-CREATE PROCEDURE DeleteProductTag(
-    IN p_tag_id INT
-)
-BEGIN
-    DELETE FROM Product_Tags
-    WHERE tag_id = p_tag_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve product tag details
-DELIMITER //
-CREATE PROCEDURE GetProductTagDetails(
-    IN p_tag_id INT
-)
-BEGIN
-    SELECT pt.tag_id, p.product_name, pt.tag_name
-    FROM Product_Tags pt
-    JOIN Products p ON pt.product_id = p.product_id
-    WHERE pt.tag_id = p_tag_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new product tag
-INSERT INTO Product_Tags (tag_id, product_id, tag_name, created_date)
-VALUES (12001, 21, 'Electronics', '2025-06-07 17:00:00');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a product tag's name
-UPDATE Product_Tags
-SET tag_name = 'Gadgets'
-WHERE tag_id = 12001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a product tag
-DELETE FROM Product_Tags
-WHERE tag_id = 12001;
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates product tag name within a transaction
-START TRANSACTION;
-UPDATE Product_Tags
-SET tag_name = 'Tech'
-WHERE tag_id = 12001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record product tag insertions
-CREATE TABLE ProductTagLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    tag_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogProductTagInsert
-AFTER INSERT ON Product_Tags
-FOR EACH ROW
-BEGIN
-    INSERT INTO ProductTagLog (tag_id, action, log_date, user_id)
-    VALUES (NEW.tag_id, 'INSERT', NOW(), USER());
-END //
-DELIMITER ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log product tag name updates
-DELIMITER //
-CREATE TRIGGER LogProductTagNameUpdate
-AFTER UPDATE ON Product_Tags
-FOR EACH ROW
-BEGIN
-    IF OLD.tag_name != NEW.tag_name THEN
-        INSERT INTO ProductTagLog (tag_id, action, log_date, user_id)
-        VALUES (NEW.tag_id, CONCAT('NAME_UPDATE: ', OLD.tag_name, ' to ', NEW.tag_name), NOW(), USER());
+    IF OLD.status != NEW.status AND NEW.status = 'Approved' THEN
+        INSERT INTO Logs (user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES (NEW.customer_id, 'Feedback Approval', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Feedback ID: ', NEW.feedback_id, ' approved'),
+                'Feedback', 'Approval');
     END IF;
-END //
-DELIMITER ;
+END;
+// DELIMITER ;
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent duplicate tags per product
-DELIMITER //
-CREATE TRIGGER PreventDuplicateProductTag
-BEFORE INSERT ON Product_Tags
-FOR EACH ROW
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM Product_Tags
-        WHERE product_id = NEW.product_id AND tag_name = NEW.tag_name
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Tag already exists for this product';
-    END IF;
-END //
-DELIMITER ;
+-- 18. Window Function: Rank feedback by rating
+SELECT feedback_id, customer_id, rating,
+       RANK() OVER (PARTITION BY customer_id ORDER BY rating DESC) AS rating_rank
+FROM Feedback;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log product tag deletions
-DELIMITER //
-CREATE TRIGGER LogProductTagDelete
-AFTER DELETE ON Product_Tags
-FOR EACH ROW
-BEGIN
-    INSERT INTO ProductTagLog (tag_id, action, log_date, user_id)
-    VALUES (OLD.tag_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
+-- 19. Window Function: Running total of feedback
+SELECT feedback_id, customer_id, rating,
+       COUNT(*) OVER (PARTITION BY customer_id ORDER BY submission_date) AS feedback_count
+FROM Feedback;
 
--- **Table 24: Notifications**
+-- 20. Window Function: Rating percentage by customer
+SELECT feedback_id, customer_id, rating,
+       rating / SUM(rating) OVER (PARTITION BY customer_id) * 100 AS rating_percentage
+FROM Feedback;
 
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of sent notifications
-CREATE VIEW SentNotifications AS
-SELECT notification_id, customer_id, sent_date
-FROM Notifications
-WHERE status = 'Sent';
+-- Table 25: Logs
+-- 1. View: Recent logs
+CREATE VIEW RecentLogs AS
+SELECT log_id, user_id, action, log_date
+FROM Logs
+WHERE log_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY);
 
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of notifications with customer details
-CREATE VIEW NotificationCustomerDetails AS
-SELECT n.notification_id, c.first_name, n.message
-FROM Notifications n
-JOIN Customers c ON n.customer_id = c.customer_id;
+-- 2. View: Failed logs
+CREATE VIEW FailedLogs AS
+SELECT log_id, user_id, action, details
+FROM Logs
+WHERE status = 'Failed';
 
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of recent notifications
-CREATE VIEW RecentNotifications AS
-SELECT notification_id, customer_id, sent_date
-FROM Notifications
-WHERE sent_date >= '2025-01-01';
+-- 3. View: Logs by module
+CREATE VIEW LogsByModule AS
+SELECT log_id, module, action, log_date
+FROM Logs
+WHERE module IS NOT NULL;
 
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of unread notifications
-CREATE VIEW UnreadNotifications AS
-SELECT notification_id, customer_id, message
-FROM Notifications
-WHERE status = 'Unread';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count notifications by customer
-WITH NotificationCounts AS (
-    SELECT customer_id, COUNT(*) AS notification_count
-    FROM Notifications
-    GROUP BY customer_id
-)
-SELECT c.customer_id, c.first_name, nc.notification_count
-FROM Customers c
-JOIN NotificationCounts nc ON c.customer_id = nc.customer_id;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list unread notifications
-WITH UnreadNotifications AS (
-    SELECT notification_id
-    FROM Notifications
-    WHERE status = 'Unread'
-)
-SELECT n.notification_id, n.customer_id
-FROM Notifications n
-JOIN UnreadNotifications un ON n.notification_id = un.notification_id;
-
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find notifications for recent orders
-WITH RecentOrders AS (
-    SELECT customer_id
-    FROM Orders
-    WHERE order_date >= '2025-01-01'
-)
-SELECT n.notification_id, n.message
-FROM Notifications n
-JOIN RecentOrders ro ON n.customer_id = ro.customer_id;
-
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list notifications by status
-WITH NotificationStatus AS (
-    SELECT status, COUNT(*) AS notification_count
-    FROM Notifications
-    GROUP BY status
-)
-SELECT status, notification_count
-FROM NotificationStatus;
-
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new notification
-DELIMITER //
-CREATE PROCEDURE AddNotification(
-    IN p_notification_id INT,
-    IN p_customer_id INT,
-    IN p_message TEXT,
-    IN p_sent_date DATETIME,
-    IN p_status VARCHAR(50)
-)
-BEGIN
-    INSERT INTO Notifications (notification_id, customer_id, message, sent_date, status)
-    VALUES (p_notification_id, p_customer_id, p_message, p_sent_date, p_status);
-END //
-DELIMITER ;
-
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update a notification's status
-DELIMITER //
-CREATE PROCEDURE UpdateNotificationStatus(
-    IN p_notification_id INT,
-    IN p_new_status VARCHAR(50)
-)
-BEGIN
-    UPDATE Notifications
-    SET status = p_new_status
-    WHERE notification_id = p_notification_id;
-END //
-DELIMITER ;
-
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete a notification
-DELIMITER //
-CREATE PROCEDURE DeleteNotification(
-    IN p_notification_id INT
-)
-BEGIN
-    DELETE FROM Notifications
-    WHERE notification_id = p_notification_id;
-END //
-DELIMITER ;
-
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve notification details
-DELIMITER //
-CREATE PROCEDURE GetNotificationDetails(
-    IN p_notification_id INT
-)
-BEGIN
-    SELECT n.notification_id, c.first_name, n.message, n.status
-    FROM Notifications n
-    JOIN Customers c ON n.customer_id = c.customer_id
-    WHERE n.notification_id = p_notification_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new notification
-INSERT INTO Notifications (notification_id, customer_id, message, sent_date, status)
-VALUES (13001, 201, 'Your order has shipped!', '2025-06-07 18:00:00', 'Sent');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates a notification's status
-UPDATE Notifications
-SET status = 'Read'
-WHERE notification_id = 13001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes a read notification
-DELETE FROM Notifications
-WHERE notification_id = 13001 AND status = 'Read';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates notification status within a transaction
-START TRANSACTION;
-UPDATE Notifications
-SET status = 'Unread'
-WHERE notification_id = 13001;
-COMMIT;
-
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record notification insertions
-CREATE TABLE NotificationLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    notification_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //;
-CREATE TRIGGER LogNotificationInsert
-AFTER INSERT ON Notifications
-FOR EACH ROW
-BEGIN
-    INSERT INTO NotificationLog (notification_id, action, log_date, user_id)
-    VALUES (NEW.notification_id, 'INSERT', NOW(), USER());
-END //;
-DELIMITER ; ;
-
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log notification status updates
-DELIMITER //
-CREATE TRIGGER LogNotificationStatusUpdate
-AFTER UPDATE ON Notifications
-FOR EACH ROW
-BEGIN
-    IF OLD.status != NEW.status THEN
-        INSERT INTO NotificationLog (notification_id, action, log_date, user_id)
-        VALUES (NEW.notification_id, CONCAT('STATUS_UPDATE: ', OLD.status, ' to ', NEW.status), NOW(), USER());
-    END IF;
-END //
-DELIMITER ;
-
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid notification statuses
-DELIMITER //;
-CREATE TRIGGER PreventInvalidNotificationStatus
-BEFORE UPDATE ON Notifications
-FOR EACH ROW
-BEGIN
-    IF NEW.status NOT IN ('New', 'Unread', 'Sent', 'Read') THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Invalid notification status';
-    END IF;
-END //;
-DELIMITER ; ;
-
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log notification deletions
-DELIMITER //
-CREATE TRIGGER LogNotificationDelete
-AFTER DELETE ON Notifications
-FOR EACH ROW
-BEGIN
-    INSERT INTO NotificationLog (notification_id, action, log_date, user_id)
-    VALUES (OLD.notification_id, 'DELETE', NOW(), USER());
-END //
-DELIMITER ;
-
--- **Table 25: Audit_Logs**
-
--- Query Number: 1
--- Query Type: View
--- Description: Creates a view of recent audit logs
-CREATE VIEW RecentAuditLogs AS
-SELECT audit_id, user_id, action_date
-FROM Audit_Logs
-WHERE action_date >= '2025-01-01';
-
--- Query Number: 2
--- Query Type: View
--- Description: Creates a view of audit logs by table
-CREATE VIEW AuditLogsByTable AS
-SELECT audit_id, table_name, COUNT(*) AS log_count
-FROM Audit_Logs
-GROUP BY table_name;
-
--- Query Number: 3
--- Query Type: View
--- Description: Creates a view of audit logs by user
-CREATE VIEW AuditLogsByUser AS
-SELECT audit_id, user_id, action
-FROM Audit_Logs
-ORDER BY user_id;
-
--- Query Number: 4
--- Query Type: View
--- Description: Creates a view of audit logs
-CREATE VIEW DeletionAuditLogs AS
-SELECT audit_id, table_name, record_id
-FROM Audit_Logs
-WHERE action LIKE '%DELETE%';
-
--- Query Number: 5
--- Query Type: CTE
--- Description: Uses a CTE to count logs by table
-WITH TableLogCounts AS (
-    SELECT table_name, COUNT(*) AS log_count
-    FROM Audit_Logs
-    GROUP BY table_name
-)
-SELECT table_name, log_count
-FROM TableLogCounts;
-
--- Query Number: 6
--- Query Type: CTE
--- Description: Uses a CTE to list logs by user
-WITH UserLogs AS (
+-- 4. CTE: Log count by user
+WITH UserLogCount AS (
     SELECT user_id, COUNT(*) AS log_count
-    FROM Audit_Logs
+    FROM Logs
     GROUP BY user_id
 )
-SELECT user_id, log_count
-FROM UserLogs;
+SELECT u.first_name, u.last_name, ul.log_count
+FROM UserLogCount ul
+JOIN Customers u ON ul.user_id = u.customer_id;
 
--- Query Number: 7
--- Query Type: CTE
--- Description: Uses a CTE to find recent logs
-WITH RecentLogs AS (
-    SELECT audit_id
-    FROM Audit_Logs
-    WHERE action_date >= '2025-01-01'
+-- 5. CTE: Recent actions
+WITH RecentActions AS (
+    SELECT log_id, user_id, action, log_date
+    FROM Logs
+    WHERE log_date >= DATE_SUB(CURDATE(), INTERVAL 24 HOUR)
 )
-SELECT al.audit_id, al.table_name
-FROM Audit_Logs al
-JOIN RecentLogs rl ON al.audit_id = rl.audit_id;
+SELECT l.log_id, c.first_name, l.action, l.log_date
+FROM RecentActions l
+JOIN Customers c ON l.user_id = c.customer_id;
 
--- Query Number: 8
--- Query Type: CTE
--- Description: Uses a CTE to list logs for deletion actions
-WITH DeletionLogs AS (
-    SELECT audit_id
-    FROM Audit_Logs
-    WHERE action LIKE '%DELETE%'
+-- 6. CTE: Ranked logs by module
+WITH RankedLogs AS (
+    SELECT log_id, module, log_date,
+           RANK() OVER (PARTITION BY module ORDER BY log_date DESC) AS log_rank
+    FROM Logs
 )
-SELECT al.audit_id, al.table_name
-FROM Audit_Logs al
-JOIN DeletionLogs dl ON al.audit_id = dl.audit_id;
+SELECT log_id, module, log_date, log_rank
+FROM RankedLogs
+WHERE log_rank <= 5;
 
--- Query Number: 9
--- Query Type: Stored Procedure
--- Description: Creates a procedure to insert a new audit log
+-- 7. Stored Procedure: Add log entry
 DELIMITER //
-CREATE PROCEDURE AddAuditLog(
-    IN p_audit_id INT,
-    IN p_user_id VARCHAR(50),
-    IN p_action VARCHAR(100),
-    IN p_table_name VARCHAR(50),
-    IN p_record_id INT,
-    IN p_action_date DATETIME
-)
+CREATE PROCEDURE AddLogEntry(IN u_id INT, IN act VARCHAR(100), IN det TEXT)
 BEGIN
-    INSERT INTO Audit_Logs (audit_id, user_id, action, table_name, record_id, action_date)
-    VALUES (p_audit_id, p_user_id, p_action, p_table_name, p_record_id, p_action_date);
+    INSERT INTO Logs (log_id, user_id, action, log_date, ip_address, device_info, status, details, module)
+    VALUES ((SELECT COALESCE(MAX(log_id), 0) + 1 FROM Logs), u_id, act, NOW(), '127.0.0.1', 'Unknown', 'Success', det, 'General');
 END //
 DELIMITER ;
 
--- Query Number: 10
--- Query Type: Stored Procedure
--- Description: Creates a procedure to update an audit log's action
+-- 8. Stored Procedure: Get logs by user
 DELIMITER //
-CREATE PROCEDURE UpdateAuditLogAction(
-    IN p_audit_id INT,
-    IN p_new_action VARCHAR(100)
-)
+CREATE PROCEDURE GetLogsByUser(IN u_id INT)
 BEGIN
-    UPDATE Audit_Logs
-    SET action = p_new_action
-    WHERE audit_id = p_audit_id;
+    SELECT log_id, action, log_date, details
+    FROM Logs
+    WHERE user_id = u_id;
 END //
 DELIMITER ;
 
--- Query Number: 11
--- Query Type: Stored Procedure
--- Description: Creates a procedure to delete an audit log
+-- 9. Stored Procedure: Clear old logs
 DELIMITER //
-CREATE PROCEDURE DeleteAuditLog(
-    IN p_audit_id INT
-)
+CREATE PROCEDURE ClearOldLogs()
 BEGIN
-    DELETE FROM Audit_Logs
-    WHERE audit_id = p_audit_id;
+    DELETE FROM Logs WHERE log_date < DATE_SUB(CURDATE(), INTERVAL 1 YEAR);
 END //
 DELIMITER ;
 
--- Query Number: 12
--- Query Type: Stored Procedure
--- Description: Creates a procedure to retrieve audit log details
-DELIMITER //
-CREATE PROCEDURE GetAuditLogDetails(
-    IN p_audit_id INT
-)
-BEGIN
-    SELECT audit_id, user_id, action, table_name, record_id
-    FROM Audit_Logs
-    WHERE audit_id = p_audit_id;
-END //
-DELIMITER ;
-
--- Query Number: 13
--- Query Type: DML
--- Description: Inserts a new audit log
-INSERT INTO Audit_Logs (audit_id, user_id, action, table_name, record_id, action_date)
-VALUES (14001, 'admin', 'INSERT', 'Orders', 301, '2025-06-07 11:00:00');
-
--- Query Number: 14
--- Query Type: DML
--- Description: Updates an audit log's action
-UPDATE Audit_Logs
-SET action = 'UPDATE'
-WHERE audit_id = 14001;
-
--- Query Number: 15
--- Query Type: DML
--- Description: Deletes an old audit log
-DELETE FROM Audit_Logs
-WHERE audit_id = 14001 AND action_date < '2025-01-01';
-
--- Query Number: 16
--- Query Type: TCL
--- Description: Updates audit log action within a transaction
+-- 10. TCL: Update log with rollback
 START TRANSACTION;
-UPDATE Audit_Logs
-SET action = 'DELETE'
-WHERE audit_id = 14001;
+UPDATE Logs SET status = 'Failed' WHERE log_id = 1;
+UPDATE Logs SET details = 'Updated error details' WHERE log_id = 1;
+-- Simulate error
+INSERT INTO Logs (log_id) VALUES (1);
+COMMIT;
+ROLLBACK;
+
+-- 11. TCL: Commit log update
+START TRANSACTION;
+UPDATE Logs SET module = 'System' WHERE log_id = 2;
+SAVEPOINT module_updated;
+UPDATE Logs SET ip_address = '192.168.1.1' WHERE log_id = 2;
 COMMIT;
 
--- Query Number: 17
--- Query Type: Trigger
--- Description: Creates a log table and trigger to record audit log insertions
-CREATE TABLE AuditLogLog (
-    log_id INT PRIMARY KEY AUTO_INCREMENT,
-    audit_id INT,
-    action VARCHAR(20),
-    log_date DATETIME,
-    user_id VARCHAR(50)
-);
-DELIMITER //
-CREATE TRIGGER LogAuditLogInsert
-AFTER INSERT ON Audit_Logs
-FOR EACH ROW
-BEGIN
-    INSERT INTO AuditLogLog (audit_id, action, log_date, user_id)
-    VALUES (NEW.audit_id, 'INSERT', NOW(), NEW.user_id);
-END //
-DELIMITER ;
+-- 12. TCL: Rollback log update
+START TRANSACTION;
+UPDATE Logs SET action = 'System Check' WHERE log_id = 3;
+ROLLBACK;
 
--- Query Number: 18
--- Query Type: Trigger
--- Description: Creates a trigger to log audit log action updates
-DELIMITER //
-CREATE TRIGGER LogAuditLogActionUpdate
-AFTER UPDATE ON Audit_Logs
-FOR EACH ROW
-BEGIN
-    IF OLD.action != NEW.action THEN
-        INSERT INTO AuditLogLog (audit_id, action, log_date, user_id)
-        VALUES (NEW.audit_id, CONCAT('ACTION_UPDATE: ', OLD.action, ' to ', NEW.action), NOW(), NEW.user_id);
-    END IF;
-END //
-DELIMITER ;
+-- 13. DCL: Grant select permission
+GRANT SELECT ON Logs TO 'user25'@'localhost';
 
--- Query Number: 19
--- Query Type: Trigger
--- Description: Creates a trigger to prevent invalid table names
+-- 14. DCL: Grant insert permission
+GRANT INSERT ON Logs TO 'system_admin';
+
+-- 15. Trigger: Log log insertion
 DELIMITER //
-CREATE TRIGGER PreventInvalidTableName
-BEFORE INSERT ON Audit_Logs
+CREATE TRIGGER LogLogInsertion
+AFTER INSERT ON Logs
 FOR EACH ROW
 BEGIN
-    IF NEW.table_name NOT IN (
-        'Products', 'Customers', 'Categories', 'Orders', 'Order_Items', 'Suppliers', 'Addresses',
-        'Payments', 'Payment_Methods', 'Reviews', 'Subscriptions', 'Wishlists', 'Cart_Items',
-        'Promotions', 'Coupons', 'Shipping_Methods', 'Shipments', 'Warehouses', 'Inventory_Transactions',
-        'Customer_Support_Tickets', 'Refunds', 'Product_Images', 'Product_Tags', 'Notifications', 'Audit_Logs'
-    ) THEN
+    INSERT INTO Logs (log_id, user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+    VALUES ((SELECT COALESCE(MAX(log_id), 0) + 1 FROM Logs), NEW.user_id, 'Log Insert', NOW(), '127.0.0.1', 'Unknown', 'Success',
+            CONCAT('Log ID: ', NEW.log_id, ' created'), 'Logs', 'Meta log');
+END;
+// DELIMITER ;
+
+-- 16. Trigger: Validate log status
+DELIMITER //
+CREATE TRIGGER ValidateLogStatus
+BEFORE INSERT ON Logs
+FOR EACH ROW
+BEGIN
+    IF NEW.status NOT IN ('Success', 'Failed', 'Pending') THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Invalid table name';
-    END IF;
-END //
-DELIMITER ;
+        SET MESSAGE_TEXT = 'Invalid log status'
+    END;
+END;
+// DELIMITER ;
 
--- Query Number: 20
--- Query Type: Trigger
--- Description: Creates a trigger to log audit log deletions
+-- 17. Trigger: Log log updates
 DELIMITER //
-CREATE TRIGGER LogAuditLogDelete
-AFTER DELETE ON Audit_Logs
+CREATE TRIGGER LogLogUpdate
+AFTER UPDATE ON Logs
 FOR EACH ROW
 BEGIN
-    INSERT INTO AuditLogLog (audit_id, action, log_date, user_id)
-    VALUES (OLD.audit_id, 'DELETE', NOW(), OLD.user_id);
-END //
-DELIMITER ;
+    IF OLD.status != NEW.status THEN
+        INSERT INTO Logs (log_id, user_id, action, log_date, ip_address, device_info, status, details, module, notes)
+        VALUES ((SELECT COALESCE(MAX(log_id), 0) + 1 FROM Logs), NEW.user_id, 'Log Update', NOW(), '127.0.0.1', 'Unknown', 'Success',
+                CONCAT('Log ID: ', NEW.log_id, ' Status changed to ', NEW.status), 'Logs', 'Meta log');
+    END IF;
+END;
+// DELIMITER ;
+
+-- 18. Window Function: Rank logs by date
+SELECT log_id, user_id, log_date,
+       RANK() OVER (PARTITION BY user_id ORDER BY log_date DESC) AS log_rank
+FROM Logs;
+
+-- 19. Window Function: Running total of logs
+SELECT log_id, user_id, log_date,
+       COUNT(*) OVER (PARTITION BY user_id ORDER BY log_date) AS log_count
+FROM Logs;
+
+-- 20. Window Function: Log percentage by module
+SELECT log_id, module, log_date,
+       COUNT(*) OVER (PARTITION BY module) / COUNT(*) OVER () * 100 AS log_percentage
+FROM Logs;

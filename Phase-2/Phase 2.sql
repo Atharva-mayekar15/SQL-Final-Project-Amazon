@@ -1,3 +1,4 @@
+-- Project Phase-2(DDL<ML<QL<C&C<Op)
 
 -- Products Table Queries
 -- Query 1: DDL - Add column for product status

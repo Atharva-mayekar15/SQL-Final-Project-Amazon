@@ -15,7 +15,10 @@ CREATE TABLE Products (
     is_active BOOLEAN,
     description TEXT,
     FOREIGN KEY (category_id) REFERENCES Categories(category_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (supplier_id) REFERENCES Suppliers(supplier_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (supplier_id) REFERENCES Suppliers(supplier_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_price CHECK (price >= 0),
+    CONSTRAINT chk_stock_quantity CHECK (stock_quantity >= 0),
+    CONSTRAINT chk_rating CHECK (rating BETWEEN 0 AND 5)
 );
 
 -- Insert 20 records into Products
@@ -52,7 +55,9 @@ CREATE TABLE Customers (
     city VARCHAR(50),
     state VARCHAR(50),
     zip_code VARCHAR(10),
-    registration_date DATE
+    registration_date DATE,
+    CONSTRAINT uk_customer_email UNIQUE (email),
+    CONSTRAINT chk_customer_phone CHECK (phone REGEXP '^[0-9]{10}$')
 );
 
 -- Insert 20 records into Customers
@@ -91,7 +96,9 @@ CREATE TABLE Orders (
     payment_method VARCHAR(50),
     tracking_number VARCHAR(50),
     FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_quantity CHECK (quantity >= 1),
+    CONSTRAINT chk_total_price CHECK (total_price >= 0)
 );
 
 -- Insert 20 records into Orders
@@ -128,7 +135,8 @@ CREATE TABLE Suppliers (
     city VARCHAR(50),
     state VARCHAR(50),
     zip_code VARCHAR(10),
-    contract_date DATE
+    contract_date DATE,
+    CONSTRAINT uk_supplier_email UNIQUE (contact_email)
 );
 
 -- Insert 20 records into Suppliers
@@ -205,7 +213,8 @@ CREATE TABLE Reviews (
     response TEXT,
     status VARCHAR(50),
     FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_rating CHECK (rating BETWEEN 1 AND 5)
 );
 
 -- Insert 20 records into Reviews
@@ -244,7 +253,8 @@ CREATE TABLE Payments (
     currency VARCHAR(10),
     notes TEXT,
     FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_amount CHECK (amount >= 0)
 );
 
 -- Insert 20 records into Payments
@@ -283,7 +293,8 @@ CREATE TABLE Shipments (
     shipping_cost DECIMAL(10, 2),
     notes TEXT,
     FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (warehouse_id) REFERENCES Warehouses(warehouse_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (warehouse_id) REFERENCES Warehouses(warehouse_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_shipping_cost CHECK (shipping_cost >= 0)
 );
 
 -- Insert 20 records into Shipments
@@ -359,7 +370,11 @@ CREATE TABLE Inventory (
     status VARCHAR(50),
     notes TEXT,
     FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (warehouse_id) REFERENCES Warehouses(warehouse_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (warehouse_id) REFERENCES Warehouses(warehouse_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_quantity CHECK (quantity >= 0),
+    CONSTRAINT chk_min_stock_level CHECK (min_stock_level >= 0),
+    CONSTRAINT chk_max_stock_level CHECK (max_stock_level >= min_stock_level),
+    CONSTRAINT chk_reorder_quantity CHECK (reorder_quantity >= 0)
 );
 
 -- Insert 20 records into Inventory
@@ -397,14 +412,15 @@ CREATE TABLE Promotions (
     created_by VARCHAR(50),
     max_uses INT,
     description TEXT,
-    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_discount_percentage CHECK (discount_percentage BETWEEN 0 AND 100)
 );
 
 -- Insert 20 records into Promotions
 INSERT INTO Promotions (promotion_id, promotion_name, product_id, discount_percentage, start_date, end_date, is_active, created_by, max_uses, description) VALUES
 (1, 'Laptop Sale', 1, 10.00, '2023-01-01', '2023-01-31', FALSE, 'Admin1', 100, 'Laptop discount'),
 (2, 'Mouse Deal', 2, 15.00, '2023-02-01', '2023-02-28', FALSE, 'Admin2', 200, 'Mouse discount'),
-(3, 'Smartphone Promo', 3, 5.00, '2023-03-1', '2023-03-31', FALSE, 'Admin3', 50, 'Smartphone discount'),
+(3, 'Smartphone Promo', 3, 5.00, '2023-03-01', '2023-03-31', FALSE, 'Admin3', 50, 'Smartphone discount'),
 (4, 'Headphones Offer', 4, 20.00, '2023-04-01', '2023-04-30', FALSE, 'Admin4', 150, 'Headphones discount'),
 (5, 'Tablet Sale', 5, 10.00, '2023-05-01', '2023-05-31', FALSE, 'Admin5', 80, 'Tablet discount'),
 (6, 'Cable Deal', 6, 25.00, '2023-06-01', '2023-06-30', FALSE, 'Admin6', 300, 'Cable discount'),
@@ -437,7 +453,8 @@ CREATE TABLE Returns (
     notes TEXT,
     FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_refund_amount CHECK (refund_amount >= 0)
 );
 
 -- Insert 20 records into Returns
@@ -476,7 +493,8 @@ CREATE TABLE Wishlists (
     priority INT,
     status VARCHAR(50),
     FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_quantity CHECK (quantity >= 1)
 );
 
 -- Insert 20 records into Wishlists
@@ -515,7 +533,9 @@ CREATE TABLE Carts (
     notes TEXT,
     status VARCHAR(50),
     FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_quantity CHECK (quantity >= 1),
+    CONSTRAINT chk_total_price CHECK (total_price >= 0)
 );
 
 -- Insert 20 records into Carts
@@ -553,7 +573,9 @@ CREATE TABLE Employees (
     role VARCHAR(50),
     salary DECIMAL(10, 2),
     status VARCHAR(50),
-    FOREIGN KEY (department_id) REFERENCES Departments(department_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (department_id) REFERENCES Departments(department_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT uk_employee_email UNIQUE (email),
+    CONSTRAINT chk_salary CHECK (salary >= 0)
 );
 
 -- Insert 20 records into Employees
@@ -591,7 +613,9 @@ CREATE TABLE Departments (
     contact_email VARCHAR(100),
     phone VARCHAR(15),
     description TEXT,
-    FOREIGN KEY (manager_id) REFERENCES Employees(employee_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (manager_id) REFERENCES Employees(employee_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT uk_department_email UNIQUE (contact_email),
+    CONSTRAINT chk_budget CHECK (budget >= 0)
 );
 
 -- Insert 20 records into Departments
@@ -608,323 +632,333 @@ INSERT INTO Departments (department_id, department_name, manager_id, location, b
 (10, 'Marketing', 18, 'San Jose', 220000.00, '2020-01-10', TRUE, 'marketing@email.com', '555-0510', 'Promotions'),
 (11, 'IT', 19, 'Austin', 280000.00, '2020-01-11', TRUE, 'it@email.com', '555-0511', 'Tech support'),
 (12, 'Logistics', 16, 'Seattle', 200000.00, '2020-01-12', TRUE, 'logistics@email.com', '555-0512', 'Shipping'),
-(13, 'Finance', 7, 'Denver', 230000.00, '2020-01-13', TRUE, 'finance@email.com', '555-0513', 'Budget planning'),
-(14, 'R&D', 19, 'Boston', 300000.00, '2020-01-14', TRUE, 'rd@email.com', '555-0514', 'Research'),
-(15, 'Legal', 18, 'Miami', 190000.00, '2020-01-15', TRUE, 'legal@email.com', '555-0515', 'Compliance'),
-(16, 'Training', 13, 'Portland', 110000.00, '2020-01-16', TRUE, 'training@email.com', '555-0516', 'Employee training'),
-(17, 'Security', 16, 'Atlanta', 170000.00, '2020-01-17', TRUE, 'security@email.com', '555-0517', 'Safety'),
-(18, 'Maintenance', 15, 'Charlotte', 130000.00, '2020-01-18', TRUE, 'maintenance@email.com', '555-0518', 'Facility upkeep'),
-(19, 'Procurement', 7, 'Las Vegas', 210000.00, '2020-01-19', TRUE, 'procurement@email.com', '555-0519', 'Supplies'),
-(20, 'Events', 11, 'Orlando', 140000.00, '2020-01-20', TRUE, 'events@email.com', '555-0520', 'Company events');
+(13, 'Finance', 7, 'Denver', 230000.00, '2020-01-13', TRUE, 'finance@email.com', '555-0513', 'Financial planning'),
+(14, 'Procurement', 18, 'Boston', 190000.00, '2020-01-14', TRUE, 'procurement@email.com', '555-0514', 'Purchasing'),
+(15, 'R&D', 19, 'Miami', 270000.00, '2020-01-15', TRUE, 'rnd@email.com', '555-0515', 'Research and development'),
+(16, 'Legal', 1, 'Portland', 210000.00, '2020-01-16', TRUE, 'legal@email.com', '555-0516', 'Legal services'),
+(17, 'Training', 13, 'Atlanta', 140000.00, '2020-01-17', TRUE, 'training@email.com', '555-0517', 'Employee training'),
+(18, 'Security', 16, 'Charlotte', 160000.00, '2020-01-18', TRUE, 'security@email.com', '555-0518', 'Security services'),
+(19, 'Maintenance', 15, 'Las Vegas', 130000.00, '2020-01-19', TRUE, 'maintenance@email.com', '555-0519', 'Facility maintenance'),
+(20, 'Analytics', 19, 'Orlando', 240000.00, '2020-01-20', TRUE, 'analytics@email.com', '555-0520', 'Data analysis');
 
 -- Table 17: Transactions
 CREATE TABLE Transactions (
     transaction_id INT PRIMARY KEY,
-    payment_id INT,
     order_id INT,
-    customer_id INT,
+    payment_id INT,
     amount DECIMAL(10, 2),
     transaction_date DATE,
     status VARCHAR(50),
-    gateway VARCHAR(50),
-    response_code VARCHAR(50),
+    payment_method VARCHAR(50),
+    customer_id INT,
     notes TEXT,
-    CONSTRAINT fk_transactions_payment_id FOREIGN KEY (payment_id) REFERENCES Payments(payment_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_transactions_order_id FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_transactions_customer_id FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    currency VARCHAR(10),
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (payment_id) REFERENCES Payments(payment_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_amount CHECK (amount >= 0)
 );
 
 -- Insert 20 records into Transactions
-INSERT INTO Transactions (transaction_id, payment_id, order_id, customer_id, amount, transaction_date, status, gateway, response_code, notes) VALUES
-(1, 1, 1, 1, 999.99, '2023-01-10', 'Completed', 'Stripe', '200', 'Laptop transaction'),
-(2, 2, 2, 2, 59.98, '2023-02-15', 'Completed', 'PayPal', '200', 'Mouse transaction'),
-(3, 3, 3, 3, 799.99, '2023-03-20', 'Pending', 'Stripe', '201', 'Smartphone transaction'),
-(4, 4, 4, 4, 179.97, '2023-04-25', 'Completed', 'Square', '200', 'Headphones transaction'),
-(5, 5, 5, 5, 499.99, '2023-05-30', 'Completed', 'Stripe', '200', 'Tablet transaction'),
-(6, 6, 6, 6, 49.95, '2023-06-05', 'Completed', 'PayPal', '200', 'Cable transaction'),
-(7, 7, 7, 7, 199.99, '2023-07-10', 'Pending', 'Stripe', '201', 'Monitor transaction'),
-(8, 8, 8, 8, 99.98, '2023-08-15', 'Completed', 'Square', '200', 'Keyboard transaction'),
-(9, 9, 9, 9, 249.99, '2023-09-20', 'Completed', 'Stripe', '200', 'Smartwatch transaction'),
-(10, 10, 10, 10, 179.98, '2023-10-25', 'Pending', 'PayPal', '201', 'Speaker transaction'),
-(11, 11, 11, 11, 599.99, '2023-11-30', 'Completed', 'Stripe', '200', 'Camera transaction'),
-(12, 12, 12, 12, 79.96, '2023-12-05', 'Completed', 'Square', '200', 'Charger transaction'),
-(13, 13, 13, 13, 129.99, '2024-01-10', 'Pending', 'Stripe', '201', 'Router transaction'),
-(14, 14, 14, 14, 119.97, '2024-02-15', 'Completed', 'PayPal', '200', 'Earbuds transaction'),
-(15, 15, 15, 15, 149.99, '2024-03-20', 'Completed', 'Stripe', '200', 'Printer transaction'),
-(16, 16, 16, 16, 77.94, '2024-04-25', 'Pending', 'Square', '201', 'Mouse pad transaction'),
-(17, 17, 17, 17, 79.99, '2024-05-30', 'Completed', 'Stripe', '200', 'HDD transaction'),
-(18, 18, 18, 18, 139.98, '2024-06-05', 'Completed', 'PayPal', '200', 'Webcam transaction'),
-(19, 19, 19, 19, 124.95, '2024-07-10', 'Pending', 'Stripe', '201', 'Smart bulb transaction'),
-(20, 20, 20, 20, 69.98, '2024-08-15', 'Completed', 'Square', '200', 'Power bank transaction');
+INSERT INTO Transactions (transaction_id, order_id, payment_id, amount, transaction_date, status, payment_method, customer_id, notes, currency) VALUES
+(1, 1, 1, 999.99, '2023-01-10', 'Completed', 'Credit Card', 1, 'Laptop purchase', 'USD'),
+(2, 2, 2, 59.98, '2023-02-15', 'Completed', 'PayPal', 2, 'Mouse purchase', 'USD'),
+(3, 3, 3, 799.99, '2023-03-20', 'Pending', 'Credit Card', 3, 'Smartphone purchase', 'USD'),
+(4, 4, 4, 179.97, '2023-04-25', 'Completed', 'Debit Card', 4, 'Headphones purchase', 'USD'),
+(5, 5, 5, 499.99, '2023-05-30', 'Completed', 'Credit Card', 5, 'Tablet purchase', 'USD'),
+(6, 6, 6, 49.95, '2023-06-05', 'Completed', 'PayPal', 6, 'Cable purchase', 'USD'),
+(7, 7, 7, 199.99, '2023-07-10', 'Pending', 'Credit Card', 7, 'Monitor purchase', 'USD'),
+(8, 8, 8, 99.98, '2023-08-15', 'Completed', 'Debit Card', 8, 'Keyboard purchase', 'USD'),
+(9, 9, 9, 249.99, '2023-09-20', 'Completed', 'Credit Card', 9, 'Smartwatch purchase', 'USD'),
+(10, 10, 10, 179.98, '2023-10-25', 'Pending', 'PayPal', 10, 'Speaker purchase', 'USD'),
+(11, 11, 11, 599.99, '2023-11-30', 'Completed', 'Credit Card', 11, 'Camera purchase', 'USD'),
+(12, 12, 12, 79.96, '2023-12-05', 'Completed', 'Credit Card', 12, 'Charger purchase', 'USD'),
+(13, 13, 13, 129.99, '2024-01-10', 'Pending', 'Debit Card', 13, 'Router purchase', 'USD'),
+(14, 14, 14, 119.97, '2024-02-15', 'Completed', 'Credit Card', 14, 'Earbuds purchase', 'USD'),
+(15, 15, 15, 149.99, '2024-03-20', 'Completed', 'PayPal', 15, 'Printer purchase', 'USD'),
+(16, 16, 16, 77.94, '2024-04-25', 'Pending', 'Credit Card', 16, 'Mouse pad purchase', 'USD'),
+(17, 17, 17, 79.99, '2024-05-30', 'Completed', 'Debit Card', 17, 'HDD purchase', 'USD'),
+(18, 18, 18, 139.98, '2024-06-05', 'Completed', 'Credit Card', 18, 'Webcam purchase', 'USD'),
+(19, 19, 19, 124.95, '2024-07-10', 'Pending', 'PayPal', 19, 'Smart bulb purchase', 'USD'),
+(20, 20, 20, 69.98, '2024-08-15', 'Completed', 'Credit Card', 20, 'Power bank purchase', 'USD');
 
 -- Table 18: Discounts
 CREATE TABLE Discounts (
     discount_id INT PRIMARY KEY,
+    promotion_id INT,
     product_id INT,
-    discount_name VARCHAR(100),
-    discount_percentage DECIMAL(5, 2),
+    discount_amount DECIMAL(10, 2),
     start_date DATE,
     end_date DATE,
     is_active BOOLEAN,
+    created_by VARCHAR(50),
     max_uses INT,
-    used_count INT,
     description TEXT,
-    CONSTRAINT fk_discounts_product_id FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (promotion_id) REFERENCES Promotions(promotion_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_discount_amount CHECK (discount_amount >= 0)
 );
 
 -- Insert 20 records into Discounts
-INSERT INTO Discounts (discount_id, product_id, discount_name, discount_percentage, start_date, end_date, is_active, max_uses, used_count, description) VALUES
-(1, 1, 'Laptop Discount', 10.00, '2023-01-01', '2023-01-31', FALSE, 100, 50, 'Laptop discount'),
-(2, 2, 'Mouse Discount', 15.00, '2023-02-01', '2023-02-28', FALSE, 200, 100, 'Mouse discount'),
-(3, 3, 'Smartphone Discount', 5.00, '2023-03-01', '2023-03-31', FALSE, 50, 30, 'Smartphone discount'),
-(4, 4, 'Headphones Discount', 20.00, '2023-04-01', '2023-04-30', FALSE, 150, 75, 'Headphones discount'),
-(5, 5, 'Tablet Discount', 10.00, '2023-05-01', '2023-05-31', FALSE, 80, 40, 'Tablet discount'),
-(6, 6, 'Cable Discount', 25.00, '2023-06-01', '2023-06-30', FALSE, 300, 150, 'Cable discount'),
-(7, 7, 'Monitor Discount', 15.00, '2023-07-01', '2023-07-31', FALSE, 60, 30, 'Monitor discount'),
-(8, 8, 'Keyboard Discount', 10.00, '2023-08-01', '2023-08-31', FALSE, 200, 100, 'Keyboard discount'),
-(9, 9, 'Smartwatch Discount', 5.00, '2023-09-01', '2023-09-30', FALSE, 100, 50, 'Smartwatch discount'),
-(10, 10, 'Speaker Discount', 20.00, '2023-10-01', '2023-10-31', FALSE, 150, 75, 'Speaker discount'),
-(11, 11, 'Camera Discount', 10.00, '2023-11-01', '2023-11-30', FALSE, 40, 20, 'Camera discount'),
-(12, 12, 'Charger Discount', 15.00, '2023-12-01', '2023-12-31', FALSE, 250, 125, 'Charger discount'),
-(13, 13, 'Router Discount', 10.00, '2024-01-01', '2024-01-31', TRUE, 90, 45, 'Router discount'),
-(14, 14, 'Earbuds Discount', 20.00, '2024-02-01', '2024-02-28', TRUE, 200, 100, 'Earbuds discount'),
-(15, 15, 'Printer Discount', 5.00, '2024-03-01', '2024-03-31', TRUE, 50, 25, 'Printer discount'),
-(16, 16, 'Mouse Pad Discount', 25.00, '2024-04-01', '2024-04-30', TRUE, 300, 150, 'Mouse pad discount'),
-(17, 17, 'HDD Discount', 15.00, '2024-05-01', '2024-05-31', TRUE, 120, 60, 'HDD discount'),
-(18, 18, 'Webcam Discount', 10.00, '2024-06-01', '2024-06-30', TRUE, 150, 75, 'Webcam discount'),
-(19, 19, 'Smart Bulb Discount', 20.00, '2024-07-01', '2024-07-31', TRUE, 250, 125, 'Smart bulb discount'),
-(20, 20, 'Power Bank Discount', 10.00, '2024-08-01', '2024-08-31', TRUE, 200, 100, 'Power bank discount');
+INSERT INTO Discounts (discount_id, promotion_id, product_id, discount_amount, start_date, end_date, is_active, created_by, max_uses, description) VALUES
+(1, 1, 1, 99.99, '2023-01-01', '2023-01-31', FALSE, 'Admin1', 100, 'Laptop discount'),
+(2, 2, 2, 4.50, '2023-02-01', '2023-02-28', FALSE, 'Admin2', 200, 'Mouse discount'),
+(3, 3, 3, 40.00, '2023-03-01', '2023-03-31', FALSE, 'Admin3', 50, 'Smartphone discount'),
+(4, 4, 4, 12.00, '2023-04-01', '2023-04-30', FALSE, 'Admin4', 150, 'Headphones discount'),
+(5, 5, 5, 50.00, '2023-05-01', '2023-05-31', FALSE, 'Admin5', 80, 'Tablet discount'),
+(6, 6, 6, 2.50, '2023-06-01', '2023-06-30', FALSE, 'Admin6', 300, 'Cable discount'),
+(7, 7, 7, 30.00, '2023-07-01', '2023-07-31', FALSE, 'Admin7', 60, 'Monitor discount'),
+(8, 8, 8, 5.00, '2023-08-01', '2023-08-31', FALSE, 'Admin8', 200, 'Keyboard discount'),
+(9, 9, 9, 12.50, '2023-09-01', '2023-09-30', FALSE, 'Admin9', 100, 'Smartwatch discount'),
+(10, 10, 10, 18.00, '2023-10-01', '2023-10-31', FALSE, 'Admin10', 150, 'Speaker discount'),
+(11, 11, 11, 60.00, '2023-11-01', '2023-11-30', FALSE, 'Admin11', 40, 'Camera discount'),
+(12, 12, 12, 3.00, '2023-12-01', '2023-12-31', FALSE, 'Admin12', 250, 'Charger discount'),
+(13, 13, 13, 13.00, '2024-01-01', '2024-01-31', TRUE, 'Admin13', 90, 'Router discount'),
+(14, 14, 14, 8.00, '2024-02-01', '2024-02-28', TRUE, 'Admin14', 200, 'Earbuds discount'),
+(15, 15, 15, 7.50, '2024-03-01', '2024-03-31', TRUE, 'Admin15', 50, 'Printer discount'),
+(16, 16, 16, 3.25, '2024-04-01', '2024-04-30', TRUE, 'Admin16', 300, 'Mouse pad discount'),
+(17, 17, 17, 12.00, '2024-05-01', '2024-05-31', TRUE, 'Admin17', 120, 'HDD discount'),
+(18, 18, 18, 7.00, '2024-06-01', '2024-06-30', TRUE, 'Admin18', 150, 'Webcam discount'),
+(19, 19, 19, 5.00, '2024-07-01', '2024-07-31', TRUE, 'Admin19', 250, 'Smart bulb discount'),
+(20, 20, 20, 3.50, '2024-08-01', '2024-08-31', TRUE, 'Admin20', 200, 'Power bank discount');
 
 -- Table 19: Taxes
 CREATE TABLE Taxes (
     tax_id INT PRIMARY KEY,
     order_id INT,
-    product_id INT,
-    tax_name VARCHAR(50),
-    tax_rate DECIMAL(5, 2),
     tax_amount DECIMAL(10, 2),
-    applied_date DATE,
+    tax_rate DECIMAL(5, 2),
+    tax_date DATE,
+    region VARCHAR(50),
     status VARCHAR(50),
-    jurisdiction VARCHAR(50),
+    description TEXT,
+    customer_id INT,
     notes TEXT,
-    CONSTRAINT fk_taxes_order_id FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_taxes_product_id FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_tax_amount CHECK (tax_amount >= 0),
+    CONSTRAINT chk_tax_rate CHECK (tax_rate BETWEEN 0 AND 100)
 );
 
 -- Insert 20 records into Taxes
-INSERT INTO Taxes (tax_id, order_id, product_id, tax_name, tax_rate, tax_amount, applied_date, status, jurisdiction, notes) VALUES
-(1, 1, 1, 'Sales Tax', 8.00, 80.00, '2023-01-10', 'Applied', 'NY', 'Laptop tax'),
-(2, 2, 2, 'Sales Tax', 7.00, 4.20, '2023-02-15', 'Applied', 'CA', 'Mouse tax'),
-(3, 3, 3, 'Sales Tax', 6.00, 48.00, '2023-03-20', 'Pending', 'IL', 'Smartphone tax'),
-(4, 4, 4, 'Sales Tax', 8.25, 14.85, '2023-04-25', 'Applied', 'TX', 'Headphones tax'),
-(5, 5, 5, 'Sales Tax', 7.50, 37.50, '2023-05-30', 'Applied', 'AZ', 'Tablet tax'),
-(6, 6, 6, 'Sales Tax', 6.50, 3.25, '2023-06-05', 'Applied', 'PA', 'Cable tax'),
-(7, 7, 7, 'Sales Tax', 8.00, 16.00, '2023-07-10', 'Pending', 'TX', 'Monitor tax'),
-(8, 8, 8, 'Sales Tax', 7.00, 7.00, '2023-08-15', 'Applied', 'CA', 'Keyboard tax'),
-(9, 9, 9, 'Sales Tax', 6.00, 15.00, '2023-09-20', 'Applied', 'TX', 'Smartwatch tax'),
-(10, 10, 10, 'Sales Tax', 8.00, 14.40, '2023-10-25', 'Pending', 'CA', 'Speaker tax'),
-(11, 11, 11, 'Sales Tax', 7.50, 45.00, '2023-11-30', 'Applied', 'TX', 'Camera tax'),
-(12, 12, 12, 'Sales Tax', 6.50, 5.20, '2023-12-05', 'Applied', 'WA', 'Charger tax'),
-(13, 13, 13, 'Sales Tax', 8.00, 10.40, '2024-01-10', 'Pending', 'CO', 'Router tax'),
-(14, 14, 14, 'Sales Tax', 7.00, 8.40, '2024-02-15', 'Applied', 'MA', 'Earbuds tax'),
-(15, 15, 15, 'Sales Tax', 6.00, 9.00, '2024-03-20', 'Applied', 'FL', 'Printer tax'),
-(16, 16, 16, 'Sales Tax', 8.25, 6.43, '2024-04-25', 'Pending', 'OR', 'Mouse pad tax'),
-(17, 17, 17, 'Sales Tax', 7.50, 6.00, '2024-05-30', 'Applied', 'GA', 'HDD tax'),
-(18, 18, 18, 'Sales Tax', 6.50, 9.10, '2024-06-05', 'Applied', 'NC', 'Webcam tax'),
-(19, 19, 19, 'Sales Tax', 8.00, 10.00, '2024-07-10', 'Pending', 'NV', 'Smart bulb tax'),
-(20, 20, 20, 'Sales Tax', 7.00, 4.90, '2024-08-15', 'Applied', 'FL', 'Power bank tax');
+INSERT INTO Taxes (tax_id, order_id, tax_amount, tax_rate, tax_date, region, status, description, customer_id, notes) VALUES
+(1, 1, 80.00, 8.00, '2023-01-10', 'NY', 'Applied', 'Sales tax', 1, 'NY tax rate'),
+(2, 2, 4.80, 8.00, '2023-02-15', 'CA', 'Applied', 'Sales tax', 2, 'CA tax rate'),
+(3, 3, 64.00, 8.00, '2023-03-20', 'IL', 'Pending', 'Sales tax', 3, 'IL tax rate'),
+(4, 4, 14.40, 8.00, '2023-04-25', 'TX', 'Applied', 'Sales tax', 4, 'TX tax rate'),
+(5, 5, 40.00, 8.00, '2023-05-30', 'AZ', 'Applied', 'Sales tax', 5, 'AZ tax rate'),
+(6, 6, 4.00, 8.00, '2023-06-05', 'PA', 'Applied', 'Sales tax', 6, 'PA tax rate'),
+(7, 7, 16.00, 8.00, '2023-07-10', 'TX', 'Pending', 'Sales tax', 7, 'TX tax rate'),
+(8, 8, 8.00, 8.00, '2023-08-15', 'CA', 'Applied', 'Sales tax', 8, 'CA tax rate'),
+(9, 9, 20.00, 8.00, '2023-09-20', 'TX', 'Applied', 'Sales tax', 9, 'TX tax rate'),
+(10, 10, 14.40, 8.00, '2023-10-25', 'CA', 'Pending', 'Sales tax', 10, 'CA tax rate'),
+(11, 11, 48.00, 8.00, '2023-11-30', 'TX', 'Applied', 'Sales tax', 11, 'TX tax rate'),
+(12, 12, 6.40, 8.00, '2023-12-05', 'WA', 'Applied', 'Sales tax', 12, 'WA tax rate'),
+(13, 13, 10.40, 8.00, '2024-01-10', 'CO', 'Pending', 'Sales tax', 13, 'CO tax rate'),
+(14, 14, 9.60, 8.00, '2024-02-15', 'MA', 'Applied', 'Sales tax', 14, 'MA tax rate'),
+(15, 15, 12.00, 8.00, '2024-03-20', 'FL', 'Applied', 'Sales tax', 15, 'FL tax rate'),
+(16, 16, 6.24, 8.00, '2024-04-25', 'OR', 'Pending', 'Sales tax', 16, 'OR tax rate'),
+(17, 17, 6.40, 8.00, '2024-05-30', 'GA', 'Applied', 'Sales tax', 17, 'GA tax rate'),
+(18, 18, 11.20, 8.00, '2024-06-05', 'NC', 'Applied', 'Sales tax', 18, 'NC tax rate'),
+(19, 19, 10.00, 8.00, '2024-07-10', 'NV', 'Pending', 'Sales tax', 19, 'NV tax rate'),
+(20, 20, 5.60, 8.00, '2024-08-15', 'FL', 'Applied', 'Sales tax', 20, 'FL tax rate');
 
 -- Table 20: Addresses
 CREATE TABLE Addresses (
     address_id INT PRIMARY KEY,
     customer_id INT,
     address_type VARCHAR(50),
-    street VARCHAR(100),
+    address_line1 VARCHAR(100),
+    address_line2 VARCHAR(100),
     city VARCHAR(50),
     state VARCHAR(50),
     zip_code VARCHAR(10),
     country VARCHAR(50),
     is_default BOOLEAN,
-    notes TEXT,
-    CONSTRAINT fk_addresses_customer_id FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Insert 20 records into Addresses
-INSERT INTO Addresses (address_id, customer_id, address_type, street, city, state, zip_code, country, is_default, notes) VALUES
-(1, 1, 'Billing', '123 Main St', 'New York', 'NY', '10001', 'USA', TRUE, 'Primary address'),
-(2, 2, 'Shipping', '456 Oak Ave', 'Los Angeles', 'CA', '90001', 'USA', TRUE, 'Home address'),
-(3, 3, 'Billing', '789 Pine Rd', 'Chicago', 'IL', '60601', 'USA', TRUE, 'Work address'),
-(4, 4, 'Shipping', '101 Maple Dr', 'Houston', 'TX', '77001', 'USA', TRUE, 'Apartment'),
-(5, 5, 'Billing', '202 Birch Ln', 'Phoenix', 'AZ', '85001', 'USA', TRUE, 'Home address'),
-(6, 6, 'Shipping', '303 Cedar St', 'Philadelphia', 'PA', '19101', 'USA', TRUE, 'Primary address'),
-(7, 7, 'Billing', '404 Elm Ave', 'San Antonio', 'TX', '78201', 'USA', TRUE, 'Work address'),
-(8, 8, 'Shipping', '505 Spruce Rd', 'San Diego', 'CA', '92101', 'USA', TRUE, 'Home address'),
-(9, 9, 'Billing', '606 Willow Dr', 'Dallas', 'TX', '75201', 'USA', TRUE, 'Apartment'),
-(10, 10, 'Shipping', '707 Aspen Ln', 'San Jose', 'CA', '95101', 'USA', TRUE, 'Primary address'),
-(11, 11, 'Billing', '808 Laurel St', 'Austin', 'TX', '73301', 'USA', TRUE, 'Home address'),
-(12, 12, 'Shipping', '909 Magnolia Ave', 'Seattle', 'WA', '98101', 'USA', TRUE, 'Work address'),
-(13, 13, 'Billing', '1010 Olive Rd', 'Denver', 'CO', '80201', 'USA', TRUE, 'Apartment'),
-(14, 14, 'Shipping', '1111 Poplar Dr', 'Boston', 'MA', '02101', 'USA', TRUE, 'Home address'),
-(15, 15, 'Billing', '1212 Sycamore Ln', 'Miami', 'FL', '33101', 'USA', TRUE, 'Primary address'),
-(16, 16, 'Shipping', '1313 Walnut St', 'Portland', 'OR', '97201', 'USA', TRUE, 'Work address'),
-(17, 17, 'Billing', '1414 Chestnut Ave', 'Atlanta', 'GA', '30301', 'USA', TRUE, 'Home address'),
-(18, 18, 'Shipping', '1515 Hazel Rd', 'Charlotte', 'NC', '28201', 'USA', TRUE, 'Apartment'),
-(19, 19, 'Billing', '1616 Fir Dr', 'Las Vegas', 'NV', '89101', 'USA', TRUE, 'Primary address'),
-(20, 20, 'Shipping', '1717 Linden Ln', 'Orlando', 'FL', '32801', 'USA', TRUE, 'Home address');
+INSERT INTO Addresses (address_id, customer_id, address_type, address_line1, address_line2, city, state, zip_code, country, is_default) VALUES
+(1, 1, 'Billing', '123 Main St', '', 'New York', 'NY', '10001', 'USA', TRUE),
+(2, 2, 'Shipping', '456 Oak Ave', 'Apt 101', 'Los Angeles', 'CA', '90001', 'USA', TRUE),
+(3, 3, 'Billing', '789 Pine Rd', '', 'Chicago', 'IL', '60601', 'USA', TRUE),
+(4, 4, 'Shipping', '101 Maple Dr', 'Suite 5', 'Houston', 'TX', '77001', 'USA', TRUE),
+(5, 5, 'Billing', '202 Birch Ln', '', 'Phoenix', 'AZ', '85001', 'USA', TRUE),
+(6, 6, 'Shipping', '303 Cedar St', 'Apt 3B', 'Philadelphia', 'PA', '19101', 'USA', TRUE),
+(7, 7, 'Billing', '404 Elm Ave', '', 'San Antonio', 'TX', '78201', 'USA', TRUE),
+(8, 8, 'Shipping', '505 Spruce Rd', 'Unit 12', 'San Diego', 'CA', '92101', 'USA', TRUE),
+(9, 9, 'Billing', '606 Willow Dr', '', 'Dallas', 'TX', '75201', 'USA', TRUE),
+(10, 10, 'Shipping', '707 Aspen Ln', 'Apt 4C', 'San Jose', 'CA', '95101', 'USA', TRUE),
+(11, 11, 'Billing', '808 Laurel St', '', 'Austin', 'TX', '73301', 'USA', TRUE),
+(12, 12, 'Shipping', '909 Magnolia Ave', 'Suite 7', 'Seattle', 'WA', '98101', 'USA', TRUE),
+(13, 13, 'Billing', '1010 Olive Rd', '', 'Denver', 'CO', '80201', 'USA', TRUE),
+(14, 14, 'Shipping', '1111 Poplar Dr', 'Apt 2A', 'Boston', 'MA', '02101', 'USA', TRUE),
+(15, 15, 'Billing', '1212 Sycamore Ln', '', 'Miami', 'FL', '33101', 'USA', TRUE),
+(16, 16, 'Shipping', '1313 Walnut St', 'Unit 9', 'Portland', 'OR', '97201', 'USA', TRUE),
+(17, 17, 'Billing', '1414 Chestnut Ave', '', 'Atlanta', 'GA', '30301', 'USA', TRUE),
+(18, 18, 'Shipping', '1515 Hazel Rd', 'Apt 6B', 'Charlotte', 'NC', '28201', 'USA', TRUE),
+(19, 19, 'Billing', '1616 Fir Dr', '', 'Las Vegas', 'NV', '89101', 'USA', TRUE),
+(20, 20, 'Shipping', '1717 Linden Ln', 'Suite 3', 'Orlando', 'FL', '32801', 'USA', TRUE);
 
 -- Table 21: Subscriptions
 CREATE TABLE Subscriptions (
     subscription_id INT PRIMARY KEY,
     customer_id INT,
-    subscription_type VARCHAR(50),
+    product_id INT,
     start_date DATE,
     end_date DATE,
     status VARCHAR(50),
-    billing_cycle VARCHAR(50),
-    amount DECIMAL(10, 2),
-    last_renewal DATE,
+    payment_method VARCHAR(50),
+    renewal_date DATE,
+    subscription_type VARCHAR(50),
     notes TEXT,
-    CONSTRAINT fk_subscriptions_customer_id FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Insert 20 records into Subscriptions
-INSERT INTO Subscriptions (subscription_id, customer_id, subscription_type, start_date, end_date, status, billing_cycle, amount, last_renewal, notes) VALUES
-(1, 1, 'Prime', '2023-01-01', '2024-01-01', 'Active', 'Annual', 139.00, '2023-01-01', 'Prime membership'),
-(2, 2, 'Music', '2023-02-01', '2024-02-01', 'Active', 'Monthly', 9.99, '2023-12-01', 'Music subscription'),
-(3, 3, 'Video', '2023-03-01', '2024-03-01', 'Active', 'Monthly', 8.99, '2023-12-01', 'Video streaming'),
-(4, 4, 'Prime', '2023-04-01', '2024-04-01', 'Active', 'Annual', 139.00, '2023-04-01', 'Prime membership'),
-(5, 5, 'Music', '2023-05-01', '2024-05-01', 'Active', 'Monthly', 9.99, '2023-12-01', 'Music subscription'),
-(6, 6, 'Video', '2023-06-01', '2024-06-01', 'Active', 'Monthly', 8.99, '2023-12-01', 'Video streaming'),
-(7, 7, 'Prime', '2023-07-01', '2024-07-01', 'Active', 'Annual', 139.00, '2023-07-01', 'Prime membership'),
-(8, 8, 'Music', '2023-08-01', '2024-08-01', 'Active', 'Monthly', 9.99, '2023-12-01', 'Music subscription'),
-(9, 9, 'Video', '2023-09-01', '2024-09-01', 'Active', 'Monthly', 8.99, '2023-12-01', 'Video streaming'),
-(10, 10, 'Prime', '2023-10-01', '2024-10-01', 'Active', 'Annual', 139.00, '2023-10-01', 'Prime membership'),
-(11, 11, 'Music', '2023-11-01', '2024-11-01', 'Active', 'Monthly', 9.99, '2023-12-01', 'Music subscription'),
-(12, 12, 'Video', '2023-12-01', '2024-12-01', 'Active', 'Monthly', 8.99, '2023-12-01', 'Video streaming'),
-(13, 13, 'Prime', '2024-01-01', '2025-01-01', 'Active', 'Annual', 139.00, '2024-01-01', 'Prime membership'),
-(14, 14, 'Music', '2024-02-01', '2025-02-01', 'Active', 'Monthly', 9.99, '2024-12-01', 'Music subscription'),
-(15, 15, 'Video', '2024-03-01', '2025-03-01', 'Active', 'Monthly', 8.99, '2024-12-01', 'Video streaming'),
-(16, 16, 'Prime', '2024-04-01', '2025-04-01', 'Active', 'Annual', 139.00, '2024-04-01', 'Prime membership'),
-(17, 17, 'Music', '2024-05-01', '2025-05-01', 'Active', 'Monthly', 9.99, '2024-12-01', 'Music subscription'),
-(18, 18, 'Video', '2024-06-01', '2025-06-01', 'Active', 'Monthly', 8.99, '2024-12-01', 'Video streaming'),
-(19, 19, 'Prime', '2024-07-01', '2025-07-01', 'Active', 'Annual', 139.00, '2024-07-01', 'Prime membership'),
-(20, 20, 'Music', '2024-08-01', '2025-08-01', 'Active', 'Monthly', 9.99, '2024-12-01', 'Music subscription');
+INSERT INTO Subscriptions (subscription_id, customer_id, product_id, start_date, end_date, status, payment_method, renewal_date, subscription_type, notes) VALUES
+(1, 1, 9, '2023-01-01', '2024-01-01', 'Active', 'Credit Card', '2024-01-01', 'Annual', 'Smartwatch subscription'),
+(2, 2, 19, '2023-02-01', '2024-02-01', 'Active', 'PayPal', '2024-02-01', 'Annual', 'Smart bulb subscription'),
+(3, 3, 9, '2023-03-01', '2024-03-01', 'Active', 'Credit Card', '2024-03-01', 'Annual', 'Smartwatch subscription'),
+(4, 4, 19, '2023-04-01', '2024-04-01', 'Active', 'Debit Card', '2024-04-01', 'Annual', 'Smart bulb subscription'),
+(5, 5, 9, '2023-05-01', '2024-05-01', 'Active', 'Credit Card', '2024-05-01', 'Annual', 'Smartwatch subscription'),
+(6, 6, 19, '2023-06-01', '2024-06-01', 'Active', 'PayPal', '2024-06-01', 'Annual', 'Smart bulb subscription'),
+(7, 7, 9, '2023-07-01', '2024-07-01', 'Active', 'Credit Card', '2024-07-01', 'Annual', 'Smartwatch subscription'),
+(8, 8, 19, '2023-08-01', '2024-08-01', 'Active', 'Debit Card', '2024-08-01', 'Annual', 'Smart bulb subscription'),
+(9, 9, 9, '2023-09-01', '2024-09-01', 'Active', 'Credit Card', '2024-09-01', 'Annual', 'Smartwatch subscription'),
+(10, 10, 19, '2023-10-01', '2024-10-01', 'Active', 'PayPal', '2024-10-01', 'Annual', 'Smart bulb subscription'),
+(11, 11, 9, '2023-11-01', '2024-11-01', 'Active', 'Credit Card', '2024-11-01', 'Annual', 'Smartwatch subscription'),
+(12, 12, 19, '2023-12-01', '2024-12-01', 'Active', 'Credit Card', '2024-12-01', 'Annual', 'Smart bulb subscription'),
+(13, 13, 9, '2024-01-01', '2025-01-01', 'Active', 'Debit Card', '2025-01-01', 'Annual', 'Smartwatch subscription'),
+(14, 14, 19, '2024-02-01', '2025-02-01', 'Active', 'Credit Card', '2025-02-01', 'Annual', 'Smart bulb subscription'),
+(15, 15, 9, '2024-03-01', '2025-03-01', 'Active', 'PayPal', '2025-03-01', 'Annual', 'Smartwatch subscription'),
+(16, 16, 19, '2024-04-01', '2025-04-01', 'Active', 'Credit Card', '2025-04-01', 'Annual', 'Smart bulb subscription'),
+(17, 17, 9, '2024-05-01', '2025-05-01', 'Active', 'Debit Card', '2025-05-01', 'Annual', 'Smartwatch subscription'),
+(18, 18, 19, '2024-06-01', '2025-06-01', 'Active', 'Credit Card', '2025-06-01', 'Annual', 'Smart bulb subscription'),
+(19, 19, 9, '2024-07-01', '2025-07-01', 'Active', 'PayPal', '2025-07-01', 'Annual', 'Smartwatch subscription'),
+(20, 20, 19, '2024-08-01', '2025-08-01', 'Active', 'Credit Card', '2025-08-01', 'Annual', 'Smart bulb subscription');
 
 -- Table 22: GiftCards
 CREATE TABLE GiftCards (
     giftcard_id INT PRIMARY KEY,
     customer_id INT,
-    order_id INT,
-    card_number VARCHAR(50),
     balance DECIMAL(10, 2),
     issue_date DATE,
     expiry_date DATE,
     status VARCHAR(50),
-    recipient_email VARCHAR(100),
+    card_number VARCHAR(50),
+    created_by VARCHAR(50),
+    last_used_date DATE,
     notes TEXT,
-    CONSTRAINT fk_giftcards_customer_id FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_giftcards_order_id FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT uk_giftcard_number UNIQUE (card_number),
+    CONSTRAINT chk_balance CHECK (balance >= 0)
 );
 
 -- Insert 20 records into GiftCards
-INSERT INTO GiftCards (giftcard_id, customer_id, order_id, card_number, balance, issue_date, expiry_date, status, recipient_email, notes) VALUES
-(1, 1, 1, 'GC1234567890', 50.00, '2023-01-10', '2024-01-10', 'Active', 'john.doe@email.com', 'Gift for friend'),
-(2, 2, 2, 'GC1234567891', 25.00, '2023-02-15', '2024-02-15', 'Active', 'jane.smith@email.com', 'Birthday gift'),
-(3, 3, 3, 'GC1234567892', 100.00, '2023-03-20', '2024-03-20', 'Active', 'alice.j@email.com', 'Holiday gift'),
-(4, 4, 4, 'GC1234567893', 75.00, '2023-04-25', '2024-04-25', 'Active', 'bob.brown@email.com', 'Thank you gift'),
-(5, 5, 5, 'GC1234567894', 50.00, '2023-05-30', '2024-05-30', 'Active', 'carol.d@email.com', 'Gift for family'),
-(6, 6, 6, 'GC1234567895', 20.00, '2023-06-05', '2024-06-05', 'Active', 'david.w@email.com', 'Small gift'),
-(7, 7, 7, 'GC1234567896', 100.00, '2023-07-10', '2024-07-10', 'Active', 'emma.m@email.com', 'Anniversary gift'),
-(8, 8, 8, 'GC1234567897', 30.00, '2023-08-15', '2024-08-15', 'Active', 'frank.t@email.com', 'Gift for colleague'),
-(9, 9, 9, 'GC1234567898', 50.00, '2023-09-20', '2024-09-20', 'Active', 'grace.a@email.com', 'Holiday gift'),
-(10, 10, 10, 'GC1234567899', 25.00, '2023-10-25', '2024-10-25', 'Active', 'henry.t@email.com', 'Birthday gift'),
-(11, 11, 11, 'GC1234567900', 75.00, '2023-11-30', '2024-11-30', 'Active', 'isabella.j@email.com', 'Thank you gift'),
-(12, 12, 12, 'GC1234567901', 50.00, '2023-12-05', '2024-12-05', 'Active', 'james.w@email.com', 'Gift for friend'),
-(13, 13, 13, 'GC1234567902', 100.00, '2024-01-10', '2025-01-10', 'Active', 'kelly.h@email.com', 'Holiday gift'),
-(14, 14, 14, 'GC1234567903', 25.00, '2024-02-15', '2025-02-15', 'Active', 'liam.m@email.com', 'Birthday gift'),
-(15, 15, 15, 'GC1234567904', 50.00, '2024-03-20', '2025-03-20', 'Active', 'mia.t@email.com', 'Gift for family'),
-(16, 16, 16, 'GC1234567905', 20.00, '2024-04-25', '2025-04-25', 'Active', 'noah.g@email.com', 'Small gift'),
-(17, 17, 17, 'GC1234567906', 75.00, '2024-05-30', '2025-05-30', 'Active', 'olivia.m@email.com', 'Thank you gift'),
-(18, 18, 18, 'GC1234567907', 50.00, '2024-06-05', '2025-06-05', 'Active', 'peter.r@email.com', 'Gift for colleague'),
-(19, 19, 19, 'GC1234567908', 100.00, '2024-07-10', '2025-07-10', 'Active', 'quinn.c@email.com', 'Holiday gift'),
-(20, 20, 20, 'GC1234567909', 25.00, '2024-08-15', '2025-08-15', 'Active', 'rachel.l@email.com', 'Birthday gift');
+INSERT INTO GiftCards (giftcard_id, customer_id, balance, issue_date, expiry_date, status, card_number, created_by, last_used_date, notes) VALUES
+(1, 1, 50.00, '2023-01-01', '2024-01-01', 'Active', 'GC123456', 'Admin1', NULL, 'Gift card for John'),
+(2, 2, 100.00, '2023-02-01', '2024-02-01', 'Active', 'GC123457', 'Admin2', NULL, 'Gift card for Jane'),
+(3, 3, 25.00, '2023-03-01', '2024-03-01', 'Active', 'GC123458', 'Admin3', NULL, 'Gift card for Alice'),
+(4, 4, 75.00, '2023-04-01', '2024-04-01', 'Active', 'GC123459', 'Admin4', NULL, 'Gift card for Bob'),
+(5, 5, 50.00, '2023-05-01', '2024-05-01', 'Active', 'GC123460', 'Admin5', NULL, 'Gift card for Carol'),
+(6, 6, 100.00, '2023-06-01', '2024-06-01', 'Active', 'GC123461', 'Admin6', NULL, 'Gift card for David'),
+(7, 7, 25.00, '2023-07-01', '2024-07-01', 'Active', 'GC123462', 'Admin7', NULL, 'Gift card for Emma'),
+(8, 8, 75.00, '2023-08-01', '2024-08-01', 'Active', 'GC123463', 'Admin8', NULL, 'Gift card for Frank'),
+(9, 9, 50.00, '2023-09-01', '2024-09-01', 'Active', 'GC123464', 'Admin9', NULL, 'Gift card for Grace'),
+(10, 10, 100.00, '2023-10-01', '2024-10-01', 'Active', 'GC123465', 'Admin10', NULL, 'Gift card for Henry'),
+(11, 11, 25.00, '2023-11-01', '2024-11-01', 'Active', 'GC123466', 'Admin11', NULL, 'Gift card for Isabella'),
+(12, 12, 75.00, '2023-12-01', '2024-12-01', 'Active', 'GC123467', 'Admin12', NULL, 'Gift card for James'),
+(13, 13, 50.00, '2024-01-01', '2025-01-01', 'Active', 'GC123468', 'Admin13', NULL, 'Gift card for Kelly'),
+(14, 14, 100.00, '2024-02-01', '2025-02-01', 'Active', 'GC123469', 'Admin14', NULL, 'Gift card for Liam'),
+(15, 15, 25.00, '2024-03-01', '2025-03-01', 'Active', 'GC123470', 'Admin15', NULL, 'Gift card for Mia'),
+(16, 16, 75.00, '2024-04-01', '2025-04-01', 'Active', 'GC123471', 'Admin16', NULL, 'Gift card for Noah'),
+(17, 17, 50.00, '2024-05-01', '2025-05-01', 'Active', 'GC123472', 'Admin17', NULL, 'Gift card for Olivia'),
+(18, 18, 100.00, '2024-06-01', '2025-06-01', 'Active', 'GC123473', 'Admin18', NULL, 'Gift card for Peter'),
+(19, 19, 25.00, '2024-07-01', '2025-07-01', 'Active', 'GC123474', 'Admin19', NULL, 'Gift card for Quinn'),
+(20, 20, 75.00, '2024-08-01', '2025-08-01', 'Active', 'GC123475', 'Admin20', NULL, 'Gift card for Rachel');
 
 -- Table 23: Coupons
 CREATE TABLE Coupons (
     coupon_id INT PRIMARY KEY,
-    order_id INT,
     coupon_code VARCHAR(50),
     discount_amount DECIMAL(10, 2),
-    issue_date DATE,
-    expiry_date DATE,
+    start_date DATE,
+    end_date DATE,
     status VARCHAR(50),
     max_uses INT,
-    used_count INT,
-    notes TEXT,
-    CONSTRAINT fk_coupons_order_id FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE
+    created_by VARCHAR(50),
+    description TEXT,
+    min_order_amount DECIMAL(10, 2),
+    CONSTRAINT uk_coupon_code UNIQUE (coupon_code),
+    CONSTRAINT chk_discount_amount CHECK (discount_amount >= 0),
+    CONSTRAINT chk_min_order_amount CHECK (min_order_amount >= 0)
 );
 
 -- Insert 20 records into Coupons
-INSERT INTO Coupons (coupon_id, order_id, coupon_code, discount_amount, issue_date, expiry_date, status, max_uses, used_count, notes) VALUES
-(1, 1, 'SAVE10', 10.00, '2023-01-01', '2023-01-31', 'Used', 100, 50, 'Order discount'),
-(2, 2, 'MOUSE15', 5.00, '2023-02-01', '2023-02-28', 'Used', 200, 100, 'Mouse discount'),
-(3, 3, 'PHONE5', 20.00, '2023-03-01', '2023-03-31', 'Active', 50, 30, 'Smartphone discount'),
-(4, 4, 'HEAD20', 15.00, '2023-04-01', '2023-04-30', 'Used', 150, 75, 'Headphones discount'),
-(5, 5, 'TABLET10', 10.00, '2023-05-01', '2023-05-31', 'Used', 80, 40, 'Tablet discount'),
-(6, 6, 'CABLE25', 5.00, '2023-06-01', '2023-06-30', 'Used', 300, 150, 'Cable discount'),
-(7, 7, 'MONITOR15', 10.00, '2023-07-01', '2023-07-31', 'Active', 60, 30, 'Monitor discount'),
-(8, 8, 'KEY10', 5.00, '2023-08-01', '2023-08-31', 'Used', 200, 100, 'Keyboard discount'),
-(9, 9, 'WATCH5', 10.00, '2023-09-01', '2023-09-30', 'Used', 100, 50, 'Smartwatch discount'),
-(10, 10, 'SPEAK20', 15.00, '2023-10-01', '2023-10-31', 'Active', 150, 75, 'Speaker discount'),
-(11, 11, 'CAM10', 20.00, '2023-11-01', '2023-11-30', 'Used', 40, 20, 'Camera discount'),
-(12, 12, 'CHARGE15', 5.00, '2023-12-01', '2023-12-31', 'Used', 250, 125, 'Charger discount'),
-(13, 13, 'ROUTER10', 10.00, '2024-01-01', '2024-01-31', 'Active', 90, 45, 'Router discount'),
-(14, 14, 'EAR20', 15.00, '2024-02-01', '2024-02-28', 'Used', 200, 100, 'Earbuds discount'),
-(15, 15, 'PRINT5', 5.00, '2024-03-01', '2024-03-31', 'Used', 50, 25, 'Printer discount'),
-(16, 16, 'PAD25', 10.00, '2024-04-01', '2024-04-30', 'Active', 300, 150, 'Mouse pad discount'),
-(17, 17, 'HDD15', 5.00, '2024-05-01', '2024-05-31', 'Used', 120, 60, 'HDD discount'),
-(18, 18, 'WEB10', 10.00, '2024-06-01', '2024-06-30', 'Used', 150, 75, 'Webcam discount'),
-(19, 19, 'BULB20', 15.00, '2024-07-01', '2024-07-31', 'Active', 250, 125, 'Smart bulb discount'),
-(20, 20, 'POWER10', 5.00, '2024-08-01', '2024-08-31', 'Used', 200, 100, 'Power bank discount');
+INSERT INTO Coupons (coupon_id, coupon_code, discount_amount, start_date, end_date, status, max_uses, created_by, description, min_order_amount) VALUES
+(1, 'SAVE10', 10.00, '2023-01-01', '2023-01-31', 'Expired', 100, 'Admin1', '10 off', 50.00),
+(2, 'MOUSE15', 15.00, '2023-02-01', '2023-02-28', 'Expired', 200, 'Admin2', '15 off mouse', 30.00),
+(3, 'PHONE5', 5.00, '2023-03-01', '2023-03-31', 'Expired', 50, 'Admin3', '5 off phone', 100.00),
+(4, 'HEAD20', 20.00, '2023-04-01', '2023-04-30', 'Expired', 150, 'Admin4', '20 off headphones', 50.00),
+(5, 'TAB10', 10.00, '2023-05-01', '2023-05-31', 'Expired', 80, 'Admin5', '10 off tablet', 200.00),
+(6, 'CABLE25', 25.00, '2023-06-01', '2023-06-30', 'Expired', 300, 'Admin6', '25 off cable', 20.00),
+(7, 'MON15', 15.00, '2023-07-01', '2023-07-31', 'Expired', 60, 'Admin7', '15 off monitor', 100.00),
+(8, 'KEY10', 10.00, '2023-08-01', '2023-08-31', 'Expired', 200, 'Admin8', '10 off keyboard', 50.00),
+(9, 'WATCH5', 5.00, '2023-09-01', '2023-09-30', 'Expired', 100, 'Admin9', '5 off smartwatch', 150.00),
+(10, 'SPEAK20', 20.00, '2023-10-01', '2023-10-31', 'Expired', 150, 'Admin10', '20 off speaker', 50.00),
+(11, 'CAM10', 10.00, '2023-11-01', '2023-11-30', 'Expired', 40, 'Admin11', '10 off camera', 200.00),
+(12, 'CHARGE15', 15.00, '2023-12-01', '2023-12-31', 'Expired', 250, 'Admin12', '15 off charger', 20.00),
+(13, 'ROUT10', 10.00, '2024-01-01', '2024-01-31', 'Active', 90, 'Admin13', '10 off router', 100.00),
+(14, 'EAR20', 20.00, '2024-02-01', '2024-02-28', 'Active', 200, 'Admin14', '20 off earbuds', 50.00),
+(15, 'PRINT5', 5.00, '2024-03-01', '2024-03-31', 'Active', 50, 'Admin15', '5 off printer', 100.00),
+(16, 'PAD25', 25.00, '2024-04-01', '2024-04-30', 'Active', 300, 'Admin16', '25 off mouse pad', 20.00),
+(17, 'HDD15', 15.00, '2024-05-01', '2024-05-31', 'Active', 120, 'Admin17', '15 off HDD', 50.00),
+(18, 'WEB10', 10.00, '2024-06-01', '2024-06-30', 'Active', 150, 'Admin18', '10 off webcam', 50.00),
+(19, 'BULB20', 20.00, '2024-07-01', '2024-07-31', 'Active', 250, 'Admin19', '20 off smart bulb', 30.00),
+(20, 'POWER10', 10.00, '2024-08-01', '2024-08-31', 'Active', 200, 'Admin20', '10 off power bank', 50.00);
 
 -- Table 24: Feedback
 CREATE TABLE Feedback (
     feedback_id INT PRIMARY KEY,
     customer_id INT,
-    order_id INT,
+    product_id INT,
     rating INT,
     comment TEXT,
     feedback_date DATE,
     status VARCHAR(50),
     response TEXT,
-    is_public BOOLEAN,
+    is_anonymous BOOLEAN,
     notes TEXT,
-    CONSTRAINT fk_feedback_customer_id FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_feedback_order_id FOREIGN KEY (order_id) REFERENCES Orders(order_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES Products(product_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT chk_rating CHECK (rating BETWEEN 1 AND 5)
 );
 
 -- Insert 20 records into Feedback
-INSERT INTO Feedback (feedback_id, customer_id, order_id, rating, comment, feedback_date, status, response, is_public, notes) VALUES
-(1, 1, 1, 5, 'Great laptop!', '2023-01-20', 'Approved', 'Thank you!', TRUE, 'Positive feedback'),
-(2, 2, 2, 4, 'Good mouse', '2023-02-25', 'Approved', 'Glad you liked it!', TRUE, 'Positive feedback'),
-(3, 3, 3, 5, 'Amazing phone', '2023-03-30', 'Pending', NULL, FALSE, 'Awaiting review'),
-(4, 4, 4, 3, 'Headphones okay', '2023-05-01', 'Approved', 'Thanks for feedback', TRUE, 'Neutral feedback'),
-(5, 5, 5, 4, 'Nice tablet', '2023-06-05', 'Approved', 'We appreciate it!', TRUE, 'Positive feedback'),
-(6, 6, 6, 2, 'Cable broke', '2023-06-15', 'Approved', 'Sorry, we’ll replace it', TRUE, 'Negative feedback'),
-(7, 7, 7, 5, 'Love the monitor', '2023-07-20', 'Pending', NULL, FALSE, 'Awaiting review'),
-(8, 8, 8, 4, 'Good keyboard', '2023-08-25', 'Approved', 'Thank you!', TRUE, 'Positive feedback'),
-(9, 9, 9, 5, 'Awesome watch', '2023-09-30', 'Approved', 'Glad you love it!', TRUE, 'Positive feedback'),
-(10, 10, 10, 3, 'Speaker average', '2023-11-01', 'Pending', NULL, FALSE, 'Awaiting review'),
-(11, 11, 11, 5, 'Great camera', '2023-12-05', 'Approved', 'Thank you!', TRUE, 'Positive feedback'),
-(12, 12, 12, 4, 'Charger works well', '2023-12-15', 'Approved', 'We appreciate it!', TRUE, 'Positive feedback'),
-(13, 13, 13, 5, 'Fast router', '2024-01-20', 'Pending', NULL, FALSE, 'Awaiting review'),
-(14, 14, 14, 4, 'Nice earbuds', '2024-02-25', 'Approved', 'Thank you!', TRUE, 'Positive feedback'),
-(15, 15, 15, 3, 'Printer jams', '2024-03-30', 'Approved', 'We’ll look into it', TRUE, 'Negative feedback'),
-(16, 16, 16, 4, 'Good mouse pad', '2024-05-01', 'Approved', 'Glad you liked it!', TRUE, 'Positive feedback'),
-(17, 17, 17, 5, 'Reliable HDD', '2024-06-05', 'Approved', 'Thank you!', TRUE, 'Positive feedback'),
-(18, 18, 18, 4, 'Clear webcam', '2024-06-15', 'Pending', NULL, FALSE, 'Awaiting review'),
-(19, 19, 19, 5, 'Love the bulb', '2024-07-20', 'Approved', 'Glad you love it!', TRUE, 'Positive feedback'),
-(20, 20, 20, 4, 'Good power bank', '2024-08-25', 'Approved', 'Thank you!', TRUE, 'Positive feedback');
+INSERT INTO Feedback (feedback_id, customer_id, product_id, rating, comment, feedback_date, status, response, is_anonymous, notes) VALUES
+(1, 1, 1, 5, 'Great laptop!', '2023-01-20', 'Approved', 'Thank you!', FALSE, 'Laptop feedback'),
+(2, 2, 2, 4, 'Good mouse', '2023-02-20', 'Approved', 'We appreciate your feedback', FALSE, 'Mouse feedback'),
+(3, 3, 3, 5, 'Awesome phone', '2023-03-25', 'Approved', 'Glad you love it!', FALSE, 'Phone feedback'),
+(4, 4, 4, 3, 'Okay headphones', '2023-04-30', 'Approved', 'Thanks for your review', FALSE, 'Headphones feedback'),
+(5, 5, 5, 4, 'Nice tablet', '2023-06-01', 'Approved', 'We value your input', FALSE, 'Tablet feedback'),
+(6, 6, 6, 2, 'Cable broke', '2023-06-10', 'Approved', 'Sorry, we’ll send a replacement', FALSE, 'Cable feedback'),
+(7, 7, 7, 5, 'Great monitor', '2023-07-15', 'Approved', 'Thank you!', FALSE, 'Monitor feedback'),
+(8, 8, 8, 4, 'Good keyboard', '2023-08-20', 'Approved', 'Glad you like it', FALSE, 'Keyboard feedback'),
+(9, 9, 9, 5, 'Love the smartwatch', '2023-09-25', 'Approved', 'Awesome to hear!', FALSE, 'Smartwatch feedback'),
+(10, 10, 10, 3, 'Speaker is okay', '2023-10-30', 'Approved', 'Thanks for your feedback', FALSE, 'Speaker feedback'),
+(11, 11, 11, 5, 'Amazing camera', '2023-12-01', 'Approved', 'Thank you!', FALSE, 'Camera feedback'),
+(12, 12, 12, 4, 'Charger works well', '2023-12-10', 'Approved', 'We appreciate that', FALSE, 'Charger feedback'),
+(13, 13, 13, 5, 'Fast router', '2024-01-15', 'Approved', 'Glad you love it', FALSE, 'Router feedback'),
+(14, 14, 14, 4, 'Good earbuds', '2024-02-20', 'Approved', 'Thanks for your review', FALSE, 'Earbuds feedback'),
+(15, 15, 15, 3, 'Printer jams', '2024-03-25', 'Approved', 'We’ll look into this', FALSE, 'Printer feedback'),
+(16, 16, 16, 4, 'Nice mouse pad', '2024-04-30', 'Approved', 'Thank you!', FALSE, 'Mouse pad feedback'),
+(17, 17, 17, 5, 'Reliable HDD', '2024-06-01', 'Approved', 'Glad you like it', FALSE, 'HDD feedback'),
+(18, 18, 18, 4, 'Clear webcam', '2024-06-10', 'Approved', 'We appreciate your feedback', FALSE, 'Webcam feedback'),
+(19, 19, 19, 5, 'Great smart bulb', '2024-07-15', 'Approved', 'Thank you!', FALSE, 'Smart bulb feedback'),
+(20, 20, 20, 4, 'Good power bank', '2024-08-20', 'Approved', 'Glad you like it', FALSE, 'Power bank feedback');
 
 -- Table 25: Logs
 CREATE TABLE Logs (
@@ -932,34 +966,34 @@ CREATE TABLE Logs (
     user_id INT,
     action VARCHAR(100),
     log_date DATETIME,
+    table_name VARCHAR(50),
+    record_id INT,
+    description TEXT,
     ip_address VARCHAR(50),
-    device_info VARCHAR(200),
     status VARCHAR(50),
-    details TEXT,
-    module VARCHAR(50),
     notes TEXT,
-    CONSTRAINT fk_logs_user_id FOREIGN KEY (user_id) REFERENCES Customers(customer_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (user_id) REFERENCES Employees(employee_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Insert 20 records into Logs
-INSERT INTO Logs (log_id, user_id, action, log_date, ip_address, device_info, status, details, module, notes) VALUES
-(1, 1, 'Login', '2023-01-10 10:00:00', '192.168.1.1', 'Chrome/Windows', 'Success', 'User logged in', 'Auth', 'Normal login'),
-(2, 2, 'Purchase', '2023-02-15 12:00:00', '192.168.1.2', 'Safari/Mac', 'Success', 'Purchased mouse', 'Order', 'Order completed'),
-(3, 3, 'Login', '2023-03-20 14:00:00', '192.168.1.3', 'Firefox/Linux', 'Failed', 'Invalid password', 'Auth', 'Login attempt'),
-(4, 4, 'Purchase', '2023-04-25 16:00:00', '192.168.1.4', 'Edge/Windows', 'Success', 'Purchased headphones', 'Order', 'Order completed'),
-(5, 5, 'Login', '2023-05-30 18:00:00', '192.168.1.5', 'Chrome/Android', 'Success', 'User logged in', 'Auth', 'Mobile login'),
-(6, 6, 'Purchase', '2023-06-05 20:00:00', '192.168.1.6', 'Safari/iOS', 'Success', 'Purchased cable', 'Order', 'Order completed'),
-(7, 7, 'Login', '2023-07-10 22:00:00', '192.168.1.7', 'Chrome/Windows', 'Success', 'User logged in', 'Auth', 'Normal login'),
-(8, 8, 'Purchase', '2023-08-15 10:00:00', '192.168.1.8', 'Firefox/Mac', 'Success', 'Purchased keyboard', 'Order', 'Order completed'),
-(9, 9, 'Login', '2023-09-20 12:00:00', '192.168.1.9', 'Safari/Windows', 'Failed', 'Invalid password', 'Auth', 'Login attempt'),
-(10, 10, 'Purchase', '2023-10-25 14:00:00', '192.168.1.10', 'Chrome/Linux', 'Success', 'Purchased speaker', 'Order', 'Order completed'),
-(11, 11, 'Login', '2023-11-30 16:00:00', '192.168.1.11', 'Edge/Android', 'Success', 'User logged in', 'Auth', 'Mobile login'),
-(12, 12, 'Purchase', '2023-12-05 18:00:00', '192.168.1.12', 'Safari/iOS', 'Success', 'Purchased charger', 'Order', 'Order completed'),
-(13, 13, 'Login', '2024-01-10 20:00:00', '192.168.1.13', 'Chrome/Windows', 'Success', 'User logged in', 'Auth', 'Normal login'),
-(14, 14, 'Purchase', '2024-02-15 22:00:00', '192.168.1.14', 'Firefox/Mac', 'Success', 'Purchased earbuds', 'Order', 'Order completed'),
-(15, 15, 'Login', '2024-03-20 10:00:00', '192.168.1.15', 'Safari/Linux', 'Failed', 'Invalid password', 'Auth', 'Login attempt'),
-(16, 16, 'Purchase', '2024-04-25 12:00:00', '192.168.1.16', 'Chrome/Windows', 'Success', 'Purchased mouse pad', 'Order', 'Order completed'),
-(17, 17, 'Login', '2024-05-30 14:00:00', '192.168.1.17', 'Edge/Android', 'Success', 'User logged in', 'Auth', 'Mobile login'),
-(18, 18, 'Purchase', '2024-06-05 16:00:00', '192.168.1.18', 'Safari/iOS', 'Success', 'Purchased webcam', 'Order', 'Order completed'),
-(19, 19, 'Login', '2024-07-10 18:00:00', '192.168.1.19', 'Chrome/Windows', 'Success', 'User logged in', 'Auth', 'Normal login'),
-(20, 20, 'Purchase', '2024-08-15 20:00:00', '192.168.1.20', 'Firefox/Mac', 'Success', 'Purchased power bank', 'Order', 'Order completed');
+INSERT INTO Logs (log_id, user_id, action, log_date, table_name, record_id, description, ip_address, status, notes) VALUES
+(1, 1, 'Create Order', '2023-01-10 10:00:00', 'Orders', 1, 'Order created for laptop', '192.168.1.1', 'Success', 'Order log'),
+(2, 2, 'Update Product', '2023-02-15 11:00:00', 'Products', 2, 'Updated mouse stock', '192.168.1.2', 'Success', 'Product update'),
+(3, 3, 'Create Payment', '2023-03-20 12:00:00', 'Payments', 3, 'Payment for smartphone', '192.168.1.3', 'Success', 'Payment log'),
+(4, 4, 'Create Shipment', '2023-04-25 13:00:00', 'Shipments', 4, 'Shipment for headphones', '192.168.1.4', 'Success', 'Shipment log'),
+(5, 5, 'Update Inventory', '2023-05-30 14:00:00', 'Inventory', 5, 'Updated tablet stock', '192.168.1.5', 'Success', 'Inventory update'),
+(6, 6, 'Create Review', '2023-06-05 15:00:00', 'Reviews', 6, 'Review for cable', '192.168.1.6', 'Success', 'Review log'),
+(7, 7, 'Create Promotion', '2023-07-10 16:00:00', 'Promotions', 7, 'Promotion for monitor', '192.168.1.7', 'Success', 'Promotion log'),
+(8, 8, 'Update Order', '2023-08-15 17:00:00', 'Orders', 8, 'Updated keyboard order', '192.168.1.8', 'Success', 'Order update'),
+(9, 9, 'Create Return', '2023-09-20 18:00:00', 'Returns', 9, 'Return for smartwatch', '192.168.1.9', 'Success', 'Return log'),
+(10, 10, 'Create Transaction', '2023-10-25 19:00:00', 'Transactions', 10, 'Transaction for speaker', '192.168.1.10', 'Success', 'Transaction log'),
+(11, 11, 'Update Customer', '2023-11-30 20:00:00', 'Customers', 11, 'Updated customer info', '192.168.1.11', 'Success', 'Customer update'),
+(12, 12, 'Create Discount', '2023-12-05 21:00:00', 'Discounts', 12, 'Discount for charger', '192.168.1.12', 'Success', 'Discount log'),
+(13, 13, 'Create Tax', '2024-01-10 22:00:00', 'Taxes', 13, 'Tax for router', '192.168.1.13', 'Success', 'Tax log'),
+(14, 14, 'Update Shipment', '2024-02-15 23:00:00', 'Shipments', 14, 'Updated earbuds shipment', '192.168.1.14', 'Success', 'Shipment update'),
+(15, 15, 'Create Feedback', '2024-03-20 10:00:00', 'Feedback', 15, 'Feedback for printer', '192.168.1.15', 'Success', 'Feedback log'),
+(16, 16, 'Create Coupon', '2024-04-25 11:00:00', 'Coupons', 16, 'Coupon for mouse pad', '192.168.1.16', 'Success', 'Coupon log'),
+(17, 17, 'Update Inventory', '2024-05-30 12:00:00', 'Inventory', 17, 'Updated HDD stock', '192.168.1.17', 'Success', 'Inventory update'),
+(18, 18, 'Create GiftCard', '2024-06-05 13:00:00', 'GiftCards', 18, 'Gift card for Peter', '192.168.1.18', 'Success', 'Gift card log'),
+(19, 19, 'Create Subscription', '2024-07-10 14:00:00', 'Subscriptions', 19, 'Subscription for smartwatch', '192.168.1.19', 'Success', 'Subscription log'),
+(20, 20, 'Update Order', '2024-08-15 15:00:00', 'Orders', 20, 'Updated power bank order', '192.168.1.20', 'Success', 'Order update');

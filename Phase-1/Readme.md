@@ -43,14 +43,6 @@ Design and implement a complete SQL database system for an Amazon-like e-commerc
 
 ---
 
-## 🖇️ ER Diagram
-
-> ER diagram created using dbdiagram.io / draw.io to show relationships between customers, products, sellers, orders, payments, and more.
-
-_(Diagram available in project folder or during presentation.)_
-
----
-
 ## 💾 Data Insertion
 
 All tables are populated with at least 20+ meaningful records:

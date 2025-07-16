@@ -54,7 +54,7 @@ ORDER BY Price DESC;
 -- Table 2:Customers Table Queries
 -- Query 1: DDL - Add column for loyalty status
 ALTER TABLE Customers
-ADD loyalty_status VARCHAR(20) DEFAULT 'Regular' COMMENT 'Customer loyalty level';
+ADD loyalty_status VARCHAR(20) DEFAULT 'Regular';
 
 -- Query 2: DML - Update email to lowercase
 UPDATE Customers
@@ -100,7 +100,7 @@ ORDER BY RegDate DESC;
 -- Table 3:Orders Table Queries
 -- Query 1: DDL - Add column for order priority
 ALTER TABLE Orders
-ADD priority VARCHAR(10) DEFAULT 'Normal' COMMENT 'Order priority level';
+ADD priority VARCHAR(10) DEFAULT 'Normal';
 
 -- Query 2: DML - Update status to uppercase
 UPDATE Orders
@@ -150,7 +150,7 @@ ORDER BY Total DESC;
 -- Table 4:Suppliers Table Queries
 -- Query 1: DDL - Add column for supplier type
 ALTER TABLE Suppliers
-ADD supplier_type VARCHAR(20) DEFAULT 'Standard' COMMENT 'Type of supplier';
+ADD supplier_type VARCHAR(20) DEFAULT 'Standard';
 
 -- Query 2: DML - Update supplier_name to uppercase
 UPDATE Suppliers
@@ -201,7 +201,7 @@ ORDER BY ContractDate DESC;
 -- Table 5: Categories Table Queries
 -- Query 1: DDL - Add column for category status
 ALTER TABLE Categories
-ADD status VARCHAR(20) DEFAULT 'Active' COMMENT 'Category status';
+ADD status VARCHAR(20) DEFAULT 'Active';
 
 -- Query 2: DML - Update category_name to uppercase
 UPDATE Categories
